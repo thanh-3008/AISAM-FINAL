@@ -43,7 +43,7 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         if(duplicateMismatch) { context.Result=new BadRequestObjectResult(new {success=false,errorCode="RESOURCE_ID_MISMATCH"}); return; }
         async Task<bool> Check(AccessResourceKind kind,Guid id,ResourcePermission permission,Guid? channel=null)
         {
-            var result=await access.CheckAsync(new(actor,workspace,kind,id,permission,channel,IncludeDeleted:action=="Restore"),ct);
+            var result=await access.CheckAsync(new(actor,workspace,kind,id,permission,channel,IncludeDeleted:action=="Restore",TeamId:ids.TryGetValue("teamId",out var teamId)?teamId:null),ct);
             if(result.Allowed) return true;
             context.Result=new ObjectResult(new {success=false,statusCode=result.StatusCode,errorCode=result.ErrorCode}){StatusCode=result.StatusCode};
             return false;
@@ -69,14 +69,14 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         {
             var value=await db.Products.AsNoTracking().FirstOrDefaultAsync(p=>p.Id==product,ct);
             if(value is null) { context.Result=new NotFoundResult(); return; }
-            if(!await Check(AccessResourceKind.Brand,value.BrandId,read?ResourcePermission.BrandView:controller=="Product"?ResourcePermission.BrandManage:ResourcePermission.ContentCreate)) return;
+            if(!await Check(AccessResourceKind.Brand,value.BrandId,read || controller=="Content" && ids.ContainsKey("contentId")?ResourcePermission.BrandView:controller=="Product"?ResourcePermission.BrandManage:ResourcePermission.ContentCreate)) return;
         }
         if(ids.TryGetValue("scheduleId",out var scheduleId))
         {
             var sched=await db.ContentCalendars.AsNoTracking().Include(s=>s.Content).FirstOrDefaultAsync(s=>s.Id==scheduleId,ct);
             if(sched is null) { context.Result=new NotFoundResult(); return; }
             var requiredPerm=read?ResourcePermission.ContentView:ResourcePermission.PostPublish;
-            if(sched.Content!=null && !await Check(AccessResourceKind.Brand,sched.Content.BrandId,requiredPerm)) return;
+            if(sched.Content!=null && !await Check(AccessResourceKind.Content,sched.ContentId,requiredPerm,sched.IntegrationId)) return;
         }
         if(ids.TryGetValue("campaignId",out var campaignId) || (controller=="AdCampaign" && ids.TryGetValue("id",out campaignId)))
         {
@@ -89,10 +89,11 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
             var review=action is "Approve" or "Reject";
             var publish=action.Contains("Publish",StringComparison.OrdinalIgnoreCase) || controller=="ContentSchedules" && !read;
             ids.TryGetValue("integrationId",out var integration);
-            var permission=review?ResourcePermission.ApprovalReview:publish?ResourcePermission.PostPublish:
+            var permission=action=="Withdraw"?ResourcePermission.ApprovalWithdraw:review?ResourcePermission.ApprovalReview:publish?ResourcePermission.PostPublish:
                 read || action=="Clone"?ResourcePermission.ContentView:HttpMethods.IsDelete(method)?ResourcePermission.ContentDelete:ResourcePermission.ContentEdit;
             if(!await Check(AccessResourceKind.Content,content,permission,publish?integration:null)) return;
             if(review) db.PermissionReviewContentId=content;
+            if(action=="Withdraw") db.PermissionWithdrawContentId=content;
         }
         foreach(var key in new[]{"socialIntegrationId","integrationId"})
             if(ids.TryGetValue(key,out var integration) && !ids.ContainsKey("contentId") &&

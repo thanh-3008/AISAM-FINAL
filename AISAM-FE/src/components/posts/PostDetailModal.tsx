@@ -3,6 +3,8 @@
 import { PostItem } from "@/services/postService";
 import { formatDate, getStatusStyle } from "@/lib/postUtils";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
+import ImageGalleryView from "@/components/content/ImageGalleryView";
+import { parseMultipleImageUrls } from "@/services/contentService";
 
 interface PostDetailModalProps {
   post: PostItem;
@@ -31,6 +33,10 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 export default function PostDetailModal({ post, onClose }: PostDetailModalProps) {
+  const postImages = (post.imageUrls && post.imageUrls.length > 0)
+    ? post.imageUrls
+    : parseMultipleImageUrls(post.imageUrl);
+
   return (
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
@@ -68,12 +74,14 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
             </div>
 
             {/* Media preview */}
-            {(post.videoUrl || post.imageUrl || post.thumbnailUrl) && (
-              <div className="mb-4 rounded-xl overflow-hidden bg-surface-container-low border border-outline-variant/20 max-h-[320px] flex items-center justify-center relative">
+            {(post.videoUrl || postImages.length > 0 || post.thumbnailUrl) && (
+              <div className="mb-4 rounded-xl overflow-hidden bg-surface-container-low border border-outline-variant/20 relative">
                 {post.videoUrl ? (
                   <video src={post.videoUrl} controls className="w-full max-h-[320px] object-contain bg-black rounded-xl" />
+                ) : postImages.length > 0 ? (
+                  <ImageGalleryView images={postImages} title={post.contentTitle || "Post images"} />
                 ) : (
-                  <img src={post.imageUrl || post.thumbnailUrl || ""} alt={post.contentTitle || "Post media"} className="w-full max-h-[320px] object-contain rounded-xl" />
+                  <img src={post.thumbnailUrl || ""} alt={post.contentTitle || "Post media"} className="w-full max-h-[320px] object-contain rounded-xl" />
                 )}
               </div>
             )}

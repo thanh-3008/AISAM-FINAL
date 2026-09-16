@@ -31,6 +31,7 @@ mixin _$WorkspaceResponseModel {
       throw _privateConstructorUsedError; // enum from backend
   int get status => throw _privateConstructorUsedError; // enum
   int get currentUserRole => throw _privateConstructorUsedError; // enum
+  String? get workspaceRole => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -59,6 +60,7 @@ abstract class $WorkspaceResponseModelCopyWith<$Res> {
     int workspaceType,
     int status,
     int currentUserRole,
+    String? workspaceRole,
     DateTime createdAt,
     DateTime updatedAt,
   });
@@ -89,6 +91,7 @@ class _$WorkspaceResponseModelCopyWithImpl<
     Object? workspaceType = null,
     Object? status = null,
     Object? currentUserRole = null,
+    Object? workspaceRole = freezed,
     Object? createdAt = null,
     Object? updatedAt = null,
   }) {
@@ -122,6 +125,10 @@ class _$WorkspaceResponseModelCopyWithImpl<
                 ? _value.currentUserRole
                 : currentUserRole // ignore: cast_nullable_to_non_nullable
                       as int,
+            workspaceRole: freezed == workspaceRole
+                ? _value.workspaceRole
+                : workspaceRole // ignore: cast_nullable_to_non_nullable
+                      as String?,
             createdAt: null == createdAt
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
@@ -153,6 +160,7 @@ abstract class _$$WorkspaceResponseModelImplCopyWith<$Res>
     int workspaceType,
     int status,
     int currentUserRole,
+    String? workspaceRole,
     DateTime createdAt,
     DateTime updatedAt,
   });
@@ -180,6 +188,7 @@ class __$$WorkspaceResponseModelImplCopyWithImpl<$Res>
     Object? workspaceType = null,
     Object? status = null,
     Object? currentUserRole = null,
+    Object? workspaceRole = freezed,
     Object? createdAt = null,
     Object? updatedAt = null,
   }) {
@@ -213,6 +222,10 @@ class __$$WorkspaceResponseModelImplCopyWithImpl<$Res>
             ? _value.currentUserRole
             : currentUserRole // ignore: cast_nullable_to_non_nullable
                   as int,
+        workspaceRole: freezed == workspaceRole
+            ? _value.workspaceRole
+            : workspaceRole // ignore: cast_nullable_to_non_nullable
+                  as String?,
         createdAt: null == createdAt
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
@@ -237,6 +250,7 @@ class _$WorkspaceResponseModelImpl implements _WorkspaceResponseModel {
     required this.workspaceType,
     required this.status,
     required this.currentUserRole,
+    this.workspaceRole,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -262,13 +276,15 @@ class _$WorkspaceResponseModelImpl implements _WorkspaceResponseModel {
   final int currentUserRole;
   // enum
   @override
+  final String? workspaceRole;
+  @override
   final DateTime createdAt;
   @override
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'WorkspaceResponseModel(id: $id, name: $name, description: $description, logoUrl: $logoUrl, workspaceType: $workspaceType, status: $status, currentUserRole: $currentUserRole, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'WorkspaceResponseModel(id: $id, name: $name, description: $description, logoUrl: $logoUrl, workspaceType: $workspaceType, status: $status, currentUserRole: $currentUserRole, workspaceRole: $workspaceRole, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -286,6 +302,8 @@ class _$WorkspaceResponseModelImpl implements _WorkspaceResponseModel {
             (identical(other.status, status) || other.status == status) &&
             (identical(other.currentUserRole, currentUserRole) ||
                 other.currentUserRole == currentUserRole) &&
+            (identical(other.workspaceRole, workspaceRole) ||
+                other.workspaceRole == workspaceRole) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
@@ -303,6 +321,7 @@ class _$WorkspaceResponseModelImpl implements _WorkspaceResponseModel {
     workspaceType,
     status,
     currentUserRole,
+    workspaceRole,
     createdAt,
     updatedAt,
   );
@@ -334,6 +353,7 @@ abstract class _WorkspaceResponseModel implements WorkspaceResponseModel {
     required final int workspaceType,
     required final int status,
     required final int currentUserRole,
+    final String? workspaceRole,
     required final DateTime createdAt,
     required final DateTime updatedAt,
   }) = _$WorkspaceResponseModelImpl;
@@ -355,6 +375,8 @@ abstract class _WorkspaceResponseModel implements WorkspaceResponseModel {
   int get status; // enum
   @override
   int get currentUserRole; // enum
+  @override
+  String? get workspaceRole;
   @override
   DateTime get createdAt;
   @override
@@ -381,6 +403,7 @@ mixin _$WorkspaceMemberResponseModel {
   String get email => throw _privateConstructorUsedError;
   String? get fullName => throw _privateConstructorUsedError;
   int get role => throw _privateConstructorUsedError; // enum
+  String? get workspaceRole => throw _privateConstructorUsedError;
   int? get quotaMode => throw _privateConstructorUsedError;
   int? get creditLimit => throw _privateConstructorUsedError;
   int? get creditUsed => throw _privateConstructorUsedError;
@@ -414,6 +437,7 @@ abstract class $WorkspaceMemberResponseModelCopyWith<$Res> {
     String email,
     String? fullName,
     int role,
+    String? workspaceRole,
     int? quotaMode,
     int? creditLimit,
     int? creditUsed,
@@ -445,6 +469,7 @@ class _$WorkspaceMemberResponseModelCopyWithImpl<
     Object? email = null,
     Object? fullName = freezed,
     Object? role = null,
+    Object? workspaceRole = freezed,
     Object? quotaMode = freezed,
     Object? creditLimit = freezed,
     Object? creditUsed = freezed,
@@ -473,6 +498,10 @@ class _$WorkspaceMemberResponseModelCopyWithImpl<
                 ? _value.role
                 : role // ignore: cast_nullable_to_non_nullable
                       as int,
+            workspaceRole: freezed == workspaceRole
+                ? _value.workspaceRole
+                : workspaceRole // ignore: cast_nullable_to_non_nullable
+                      as String?,
             quotaMode: freezed == quotaMode
                 ? _value.quotaMode
                 : quotaMode // ignore: cast_nullable_to_non_nullable
@@ -514,6 +543,7 @@ abstract class _$$WorkspaceMemberResponseModelImplCopyWith<$Res>
     String email,
     String? fullName,
     int role,
+    String? workspaceRole,
     int? quotaMode,
     int? creditLimit,
     int? creditUsed,
@@ -545,6 +575,7 @@ class __$$WorkspaceMemberResponseModelImplCopyWithImpl<$Res>
     Object? email = null,
     Object? fullName = freezed,
     Object? role = null,
+    Object? workspaceRole = freezed,
     Object? quotaMode = freezed,
     Object? creditLimit = freezed,
     Object? creditUsed = freezed,
@@ -573,6 +604,10 @@ class __$$WorkspaceMemberResponseModelImplCopyWithImpl<$Res>
             ? _value.role
             : role // ignore: cast_nullable_to_non_nullable
                   as int,
+        workspaceRole: freezed == workspaceRole
+            ? _value.workspaceRole
+            : workspaceRole // ignore: cast_nullable_to_non_nullable
+                  as String?,
         quotaMode: freezed == quotaMode
             ? _value.quotaMode
             : quotaMode // ignore: cast_nullable_to_non_nullable
@@ -608,6 +643,7 @@ class _$WorkspaceMemberResponseModelImpl
     required this.email,
     this.fullName,
     required this.role,
+    this.workspaceRole,
     this.quotaMode,
     this.creditLimit,
     this.creditUsed,
@@ -631,6 +667,8 @@ class _$WorkspaceMemberResponseModelImpl
   final int role;
   // enum
   @override
+  final String? workspaceRole;
+  @override
   final int? quotaMode;
   @override
   final int? creditLimit;
@@ -643,7 +681,7 @@ class _$WorkspaceMemberResponseModelImpl
 
   @override
   String toString() {
-    return 'WorkspaceMemberResponseModel(id: $id, userId: $userId, email: $email, fullName: $fullName, role: $role, quotaMode: $quotaMode, creditLimit: $creditLimit, creditUsed: $creditUsed, creditPeriodStart: $creditPeriodStart, joinedAt: $joinedAt)';
+    return 'WorkspaceMemberResponseModel(id: $id, userId: $userId, email: $email, fullName: $fullName, role: $role, workspaceRole: $workspaceRole, quotaMode: $quotaMode, creditLimit: $creditLimit, creditUsed: $creditUsed, creditPeriodStart: $creditPeriodStart, joinedAt: $joinedAt)';
   }
 
   @override
@@ -657,6 +695,8 @@ class _$WorkspaceMemberResponseModelImpl
             (identical(other.fullName, fullName) ||
                 other.fullName == fullName) &&
             (identical(other.role, role) || other.role == role) &&
+            (identical(other.workspaceRole, workspaceRole) ||
+                other.workspaceRole == workspaceRole) &&
             (identical(other.quotaMode, quotaMode) ||
                 other.quotaMode == quotaMode) &&
             (identical(other.creditLimit, creditLimit) ||
@@ -678,6 +718,7 @@ class _$WorkspaceMemberResponseModelImpl
     email,
     fullName,
     role,
+    workspaceRole,
     quotaMode,
     creditLimit,
     creditUsed,
@@ -712,6 +753,7 @@ abstract class _WorkspaceMemberResponseModel
     required final String email,
     final String? fullName,
     required final int role,
+    final String? workspaceRole,
     final int? quotaMode,
     final int? creditLimit,
     final int? creditUsed,
@@ -732,6 +774,8 @@ abstract class _WorkspaceMemberResponseModel
   String? get fullName;
   @override
   int get role; // enum
+  @override
+  String? get workspaceRole;
   @override
   int? get quotaMode;
   @override

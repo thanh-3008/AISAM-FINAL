@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../workspace/presentation/providers/workspace_controller.dart';
 import '../../data/repositories/publishing_repository.dart';
+import '../../../../core/network/rbac_context.dart';
 
 final contentPermissionsProvider = FutureProvider.autoDispose
     .family<List<bool>, String>((ref, id) async {
@@ -11,12 +12,9 @@ final contentPermissionsProvider = FutureProvider.autoDispose
           workspace.valueOrNull == null) {
         return [false, false, false, false];
       }
-      final role = workspace.valueOrNull?.currentUserRole;
-      // Owner (1) or Manager (2) always has full content & review permissions
-      if (role == 1 || role == 2) {
-        return [true, true, true, true];
-      }
       try {
+        // Re-check decisions after a permission revision changes. Context errors deny access.
+        await ref.watch(rbacContextProvider.future);
         return await PublishingRepository(
           ref.watch(dioProvider),
         ).contentPermissions(id);

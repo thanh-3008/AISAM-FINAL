@@ -7,6 +7,9 @@ public partial class AisamContext
 {
     // Populated from persisted membership/assignments before any business query.
     public bool PermissionScopeEnabled { get; set; }
+    public bool PermissionV2Enabled { get; set; }
+    public Guid[] PermissionWriteTeamIds { get; set; } = [];
+    public Guid[] PermissionManagerTeamIds { get; set; } = [];
     public Guid PermissionWorkspaceId { get; set; }
     public Guid PermissionActorId { get; set; }
     public bool PermissionOwner { get; set; }
@@ -21,6 +24,7 @@ public partial class AisamContext
     public bool PermissionReviewQueue { get; set; }
     public bool PermissionOnlyMyContent { get; set; }
     public Guid? PermissionReviewContentId { get; set; }
+    public Guid? PermissionWithdrawContentId { get; set; }
     public Func<object,EntityState,CancellationToken,Task>? BeforePermissionMutation { get; set; }
 
     private void ConfigurePermissionScope(ModelBuilder m)
@@ -30,9 +34,16 @@ public partial class AisamContext
         m.Entity<Team>().HasQueryFilter(t=>!PermissionScopeEnabled || t.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionTeamIds.Contains(t.Id)));
         m.Entity<TeamMember>().HasQueryFilter(t=>!PermissionScopeEnabled || PermissionOwner && Teams.Any(team=>team.Id==t.TeamId) || PermissionTeamIds.Contains(t.TeamId));
         m.Entity<WorkspaceMember>().HasQueryFilter(m=>!PermissionScopeEnabled || m.WorkspaceId==PermissionWorkspaceId &&
-            (PermissionOwner || m.UserId==PermissionActorId || PermissionManager && TeamMembers.Any(t=>t.UserId==m.UserId && t.IsActive)));
+            (PermissionOwner || m.UserId==PermissionActorId || (PermissionManager || PermissionV2Enabled) && TeamMembers.Any(t=>t.UserId==m.UserId && t.IsActive)));
         m.Entity<CreditUsageRecord>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || c.UserId==PermissionActorId));
-        m.Entity<Content>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionBrandIds.Contains(c.BrandId)) &&
+        m.Entity<Content>().HasQueryFilter(c=>PermissionV2Enabled ?
+            c.WorkspaceId==PermissionWorkspaceId && !c.IsDeleted &&
+            (!PermissionOnlyMyContent || c.PrimaryCreatorId==PermissionActorId) &&
+            (PermissionOwner || c.TeamId.HasValue && PermissionTeamIds.Contains(c.TeamId.Value) &&
+                PermissionBrandIds.Contains(c.BrandId) && TeamBrands.Any(tb=>tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive) &&
+                (!PermissionReviewQueue || PermissionManagerTeamIds.Contains(c.TeamId.Value)) &&
+                (PermissionWriteTeamIds.Contains(c.TeamId.Value) || c.Status==AISAM.Data.Enumeration.ContentStatusEnum.Approved || c.Status==AISAM.Data.Enumeration.ContentStatusEnum.Published))
+            :!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionBrandIds.Contains(c.BrandId)) &&
             (!PermissionOnlyMyContent || c.PrimaryCreatorId==PermissionActorId) &&
             (!PermissionReviewQueue || PermissionOwner || PermissionManager || PermissionCreator && PermissionReviewBrandIds.Contains(c.BrandId)) &&
             (PermissionOwner || PermissionManager || PermissionCreator && (c.PrimaryCreatorId==PermissionActorId || PermissionViewAllBrandIds.Contains(c.BrandId)) || c.Id==PermissionReviewContentId ||
@@ -41,13 +52,17 @@ public partial class AisamContext
             (PermissionOwner || PermissionChannelIds.Contains(i.Id)));
         m.Entity<SocialAccount>().HasQueryFilter(a=>!PermissionScopeEnabled || a.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || SocialIntegrations.Any(i=>i.SocialAccountId==a.Id)));
         m.Entity<Post>().HasQueryFilter(p=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==p.ContentId && c.WorkspaceId==PermissionWorkspaceId &&
-            (c.PrimaryCreatorId==PermissionActorId ||
+            (PermissionV2Enabled ? PermissionOwner || c.TeamId.HasValue && TeamBrands.Any(tb=>tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive &&
+                TeamChannelAccesses.Any(g=>g.TeamBrandId==tb.Id && g.IntegrationId==p.IntegrationId && g.ScopeEnabledV2)) : c.PrimaryCreatorId==PermissionActorId ||
              SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.BrandId==c.BrandId && i.WorkspaceId==PermissionWorkspaceId &&
                  (PermissionOwner || PermissionChannelIds.Contains(i.Id))))));
         m.Entity<ContentCalendar>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && Contents.Any(x=>x.Id==c.ContentId));
-        m.Entity<Approval>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId));
-        m.Entity<AiGeneration>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId));
-        m.Entity<AutomationPlan>().HasQueryFilter(p=>!PermissionScopeEnabled || p.WorkspaceId==PermissionWorkspaceId &&
+        m.Entity<Approval>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId &&
+            (!PermissionV2Enabled || PermissionOwner || c.TeamId.HasValue && PermissionWriteTeamIds.Contains(c.TeamId.Value) ||
+                a.SnapshotId!=null && a.SnapshotId==c.ApprovedSnapshotId && a.Status==AISAM.Data.Enumeration.ContentStatusEnum.Approved)));
+        m.Entity<AiGeneration>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId &&
+            (!PermissionV2Enabled || PermissionOwner || c.TeamId.HasValue && PermissionWriteTeamIds.Contains(c.TeamId.Value))));
+        m.Entity<AutomationPlan>().HasQueryFilter(p=>PermissionV2Enabled ? p.WorkspaceId==PermissionWorkspaceId && !p.IsDeleted && (PermissionOwner || PermissionPlanIds.Contains(p.Id)) : !PermissionScopeEnabled || p.WorkspaceId==PermissionWorkspaceId &&
             (PermissionOwner || PermissionManager || PermissionCreator && p.CreatedByUserId==PermissionActorId) &&
             (PermissionOwner || PermissionPlanIds.Contains(p.Id)));
         m.Entity<AutomationItem>().HasQueryFilter(i=>!PermissionScopeEnabled || (PermissionOwner || AutomationPlans.Any(p=>p.Id==i.AutomationPlanId) && (!i.BrandId.HasValue || PermissionBrandIds.Contains(i.BrandId.Value))));
@@ -60,10 +75,14 @@ public partial class AisamContext
             (r.PostId.HasValue && Posts.Any(p=>p.Id==r.PostId) || r.AdId.HasValue && Ads.Any(a=>a.Id==r.AdId)));
         m.Entity<VideoGenerationJob>().HasQueryFilter(v=>!PermissionScopeEnabled || v.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || v.UserId==PermissionActorId));
         // Legacy conversations lack creator attribution: do not infer it from workspace membership.
-        m.Entity<Conversation>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId &&
+        m.Entity<Conversation>().HasQueryFilter(c=>PermissionV2Enabled ? !c.IsDeleted && c.WorkspaceId==PermissionWorkspaceId &&
+            (PermissionOwner || c.CreatedByUserId==PermissionActorId && c.TeamId.HasValue && PermissionWriteTeamIds.Contains(c.TeamId.Value) &&
+                TeamBrands.Any(tb=>tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive)) : !PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId &&
             (PermissionOwner || !c.BrandId.HasValue || PermissionBrandIds.Contains(c.BrandId.Value)) && (PermissionOwner || c.CreatedByUserId==PermissionActorId));
         m.Entity<ChatMessage>().HasQueryFilter(c=>!PermissionScopeEnabled || Conversations.Any(x=>x.Id==c.ConversationId));
-        m.Entity<Asset>().HasQueryFilter(a=>!PermissionScopeEnabled || a.ExpiredAt==null && a.WorkspaceId==PermissionWorkspaceId &&
+        m.Entity<Asset>().HasQueryFilter(a=>PermissionV2Enabled ?
+            a.ExpiredAt==null && a.WorkspaceId==PermissionWorkspaceId &&
+            (PermissionOwner || ContentMedia.Any(cm=>cm.AssetId==a.Id && Contents.Any(c=>c.Id==cm.ContentId))) :!PermissionScopeEnabled || a.ExpiredAt==null && a.WorkspaceId==PermissionWorkspaceId &&
             (PermissionOwner || !a.BrandId.HasValue || (PermissionBrandIds.Contains(a.BrandId.Value) && (PermissionManager || a.UploadedBy==PermissionActorId))));
         // Unknown target types are not safe for non-owner broadcast; explicit targets only.
         m.Entity<Notification>().HasQueryFilter(n=>!PermissionScopeEnabled || n.WorkspaceId==PermissionWorkspaceId &&

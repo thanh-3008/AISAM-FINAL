@@ -14,6 +14,26 @@ namespace AISAM.IntegrationTests;
 public class AutomationCreatorTests
 {
     [Fact]
+    public async Task V2CompletedGenerationSubmitsTheExactTeamContentForReview()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var user=new User{Email="team-creator@example.test"};var profile=new Profile{UserId=user.Id};var workspace=new Workspace();
+        var team=new Team{WorkspaceId=workspace.Id};var brand=new Brand{WorkspaceId=workspace.Id,ProfileId=profile.Id};
+        var plan=new AutomationPlan{WorkspaceId=workspace.Id,ProfileId=profile.Id,CreatedByUserId=user.Id,Status=AutomationPlanStatusEnum.Generating};
+        var content=new Content{WorkspaceId=workspace.Id,ProfileId=profile.Id,BrandId=brand.Id,TeamId=team.Id,PrimaryCreatorId=user.Id,TextContent="Already generated"};
+        var item=new AutomationItem{AutomationPlan=plan,Brand=brand,BrandId=brand.Id,TeamId=team.Id,ContentId=content.Id,Content=content,Platform="facebook",RequestedContentType=AutomationContentTypeEnum.Text,UsedCredits=1,Status=AutomationItemStatusEnum.Pending};
+        db.AddRange(user,profile,workspace,team,brand,plan,content,item,new WorkspaceMember{WorkspaceId=workspace.Id,UserId=user.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
+            new TeamMember{TeamId=team.Id,UserId=user.Id,Role=TeamRoleEnum.ContentCreator},new TeamBrand{TeamId=team.Id,BrandId=brand.Id});
+        await db.SaveChangesAsync();
+        var access=new AISAM.Services.Access.RbacV2AccessAdapter(db,new AISAM.Services.Access.RbacV2AccessResolver(db));
+        var service=new AutomationGenerationService(db,null!,null!,null!,null!,new Credits(),Options.Create(new ImageProviderSettings()),Options.Create(new VideoProviderSettings()),NullLogger<AutomationGenerationService>.Instance,access);
+        await service.ProcessNextAsync();
+        Assert.Equal(AutomationItemStatusEnum.AwaitingApproval,item.Status);
+        Assert.Equal(ContentStatusEnum.PendingApproval,content.Status);
+        Assert.Equal(team.Id,content.TeamId);
+        Assert.NotNull(content.SubmittedSnapshotId);
+    }
+    [Fact]
     public void MultipleDestinationsRemainPendingUntilEveryOutcomeIsKnown()
     {
         var item = new AutomationItem { AutomationPlan = new() { AutoApprove = true }, Status = AutomationItemStatusEnum.Scheduled };

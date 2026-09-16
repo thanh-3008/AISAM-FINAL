@@ -11,11 +11,53 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
+using AISAM.Repositories;
+using AISAM.Services.Access;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.IntegrationTests;
 
 public class AIServiceTests
 {
+    [Theory]
+    [InlineData(TeamRoleEnum.ContentCreator, true, true)]
+    [InlineData(TeamRoleEnum.Manager, true, true)]
+    [InlineData(TeamRoleEnum.Viewer, true, false)]
+    [InlineData(TeamRoleEnum.ContentCreator, false, false)]
+    public async Task V2DraftRequiresTeamAndPersistsIt(TeamRoleEnum role, bool includeTeam, bool permitted)
+    {
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var user = new User { IsActive = true };
+        var workspace = new Workspace();
+        var brand = new Brand { WorkspaceId = workspace.Id, ProfileId = Guid.NewGuid(), Name = "Brand" };
+        var team = new Team { WorkspaceId = workspace.Id };
+        db.AddRange(user, workspace, brand, team,
+            new WorkspaceMember { WorkspaceId = workspace.Id, UserId = user.Id, WorkspaceRoleV2 = WorkspaceRoleV2.Member },
+            new TeamBrand { TeamId = team.Id, BrandId = brand.Id },
+            new TeamMember { TeamId = team.Id, UserId = user.Id, Role = role });
+        await db.SaveChangesAsync();
+        var contents = new FakeContentRepository();
+        var client = new FakeGeminiTextClient("Generated copy");
+        var conversations = new FakeConversationRepository();
+        var service = CreateService(contents, new FakeAiGenerationRepository(), new FakeBrandRepository(brand), client,
+            conversationRepository: conversations, access: new RbacV2AccessAdapter(db, new RbacV2AccessResolver(db)));
+        var result = await service.GenerateDraftAsync(brand.ProfileId, workspace.Id, user.Id,
+            new CreateDraftRequest { BrandId = brand.Id, TeamId = includeTeam ? team.Id : null, Prompt = "Create an ad" });
+        Assert.Equal(permitted, result.Success);
+        if (permitted) {
+            Assert.Equal(team.Id, Assert.Single(contents.Created).TeamId);
+            var foreign = await conversations.AddAsync(new Conversation { WorkspaceId = workspace.Id, BrandId = brand.Id, TeamId = Guid.NewGuid(), CreatedByUserId = user.Id });
+            var chat = await service.ChatInWorkspaceAsync(brand.ProfileId, workspace.Id, user.Id,
+                new ChatRequest { BrandId = brand.Id, TeamId = team.Id, ConversationId = foreign.Id, Message = "Read previous conversation" });
+            Assert.Equal(404, chat.StatusCode); Assert.Empty(conversations.Messages);
+        }
+        else {
+            Assert.Equal(403, result.StatusCode); Assert.Empty(contents.Created); Assert.Empty(client.LastPrompt);
+            var chat = await service.ChatInWorkspaceAsync(brand.ProfileId, workspace.Id, user.Id,
+                new ChatRequest { BrandId = brand.Id, TeamId = includeTeam ? team.Id : null, Message = "Create an ad" });
+            Assert.Equal(403, chat.StatusCode); Assert.Empty(client.LastPrompt);
+        }
+    }
     [Fact]
     public async Task DraftRecordsAuthenticatedActorAsCreator()
     {
@@ -836,7 +878,7 @@ public class AIServiceTests
         ICreditService? creditService = null,
         IPromptEnhancerService? promptEnhancer = null,
         IAIVideoProvider? videoProvider = null,
-        IMediaStorageService? mediaStorage = null)
+        IMediaStorageService? mediaStorage = null, IAccessControlService? access = null)
     {
         return new AIService(
             contentRepository,
@@ -850,7 +892,7 @@ public class AIServiceTests
             videoProvider ?? new FakeVideoProvider(),
             mediaStorage!,
             promptEnhancer ?? new FakePromptEnhancerService(),
-            NullLogger<AIService>.Instance);
+            NullLogger<AIService>.Instance, access);
     }
 
     private static Brand CreateBrand(Guid profileId)

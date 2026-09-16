@@ -1,12 +1,16 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/models/conversation_model.dart';
+import '../../../../core/network/rbac_context.dart';
+import '../../../workspace/presentation/providers/workspace_controller.dart';
 part 'conversation_list_provider.g.dart';
 
 @riverpod
 class ConversationListNotifier extends _$ConversationListNotifier {
   @override
   Future<List<ConversationModel>> build() async {
+    await ref.watch(activeWorkspaceControllerProvider.future);
+    await ref.watch(rbacContextProvider.future);
     return _fetchConversations();
   }
 

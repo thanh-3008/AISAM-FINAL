@@ -3,6 +3,7 @@ import '../../data/repositories/content_repository.dart';
 import '../../data/models/content_model.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../workspace/presentation/providers/workspace_controller.dart';
+import '../../../../core/network/rbac_context.dart';
 
 part 'content_list_controller.g.dart';
 
@@ -16,6 +17,7 @@ class ContentListController extends _$ContentListController {
   @override
   AsyncValue<List<ContentResponseModel>> build() {
     ref.watch(activeWorkspaceControllerProvider);
+    ref.watch(rbacContextProvider.select((context) => context.valueOrNull?.revision));
     _generation++;
     ref.onDispose(() => _generation++);
     _fetchContents(isRefresh: true);

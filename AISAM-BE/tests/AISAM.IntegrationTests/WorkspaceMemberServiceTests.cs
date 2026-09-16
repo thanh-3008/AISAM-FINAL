@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using AISAM.Common.Dtos.Request;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
@@ -12,6 +13,23 @@ namespace AISAM.IntegrationTests;
 public class WorkspaceMemberServiceTests
 {
     [Fact]
+    public async Task V2ManagerRemovalRevokesTeamsAndOwnerTransferUsesV2()
+    {
+        await using var db=CreateContext();var f=SeedWorkspace(db);
+        f.Owner.WorkspaceRoleV2=WorkspaceRoleV2.Owner;f.Manager.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;f.Viewer.WorkspaceRoleV2=WorkspaceRoleV2.Member;
+        var team=new Team{WorkspaceId=f.Workspace.Id};
+        var tm=new TeamMember{TeamId=team.Id,UserId=f.Viewer.UserId};db.AddRange(team,tm);await db.SaveChangesAsync();
+        var cfg=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{["Rbac:UseV2"]="true"}).Build();
+        var service=new WorkspaceMemberService(new WorkspaceMemberRepository(db,cfg),new WorkspaceRepository(db),new SubscriptionRepository(db),cfg,db);
+        Assert.False((await service.UpdateRoleAsync(f.Workspace.Id,f.Manager.UserId,f.Viewer.Id,new UpdateWorkspaceMemberRoleRequest{WorkspaceRole=WorkspaceRoleV2.WorkspaceManager})).Success);
+        Assert.False((await service.RemoveAsync(f.Workspace.Id,f.Manager.UserId,f.Owner.Id)).Success);
+        Assert.True((await service.RemoveAsync(f.Workspace.Id,f.Manager.UserId,f.Viewer.Id)).Success);
+        Assert.False(tm.IsActive);
+        Assert.True((await service.TransferOwnershipAsync(f.Workspace.Id,f.Owner.UserId,new TransferWorkspaceOwnershipRequest{TargetMemberId=f.Manager.Id})).Success);
+        Assert.Equal(WorkspaceRoleV2.Owner,f.Manager.WorkspaceRoleV2);
+        Assert.Equal(WorkspaceRoleV2.WorkspaceManager,f.Owner.WorkspaceRoleV2);
+    }
+    [Fact]
     public async Task GetMembersAsync_AllowsActiveMember()
     {
         await using var context = CreateContext();
@@ -22,6 +40,31 @@ public class WorkspaceMemberServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(3, result.Data!.Count);
+    }
+
+    [Fact]
+    public async Task V2MemberDirectoryListsAllWorkspaceMembersWithoutFinancialQuota()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context);
+        fixture.Owner.WorkspaceRoleV2 = WorkspaceRoleV2.Owner;
+        fixture.Manager.WorkspaceRoleV2 = WorkspaceRoleV2.WorkspaceManager;
+        fixture.Viewer.WorkspaceRoleV2 = WorkspaceRoleV2.Member;
+        fixture.Owner.CreditLimit = 900;
+        fixture.Owner.CreditUsed = 300;
+        await context.SaveChangesAsync();
+        var configuration=new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string,string?> { ["Rbac:UseV2"]="true" }).Build();
+        var service=new WorkspaceMemberService(new WorkspaceMemberRepository(context,configuration),
+            new WorkspaceRepository(context),new SubscriptionRepository(context),configuration,context);
+
+        var result=await service.GetMembersAsync(fixture.Workspace.Id,fixture.Viewer.UserId);
+
+        Assert.True(result.Success);
+        Assert.Equal(3,result.Data!.Count);
+        Assert.All(result.Data,member=>Assert.False(string.IsNullOrWhiteSpace(member.Email)));
+        Assert.All(result.Data,member=>Assert.Null(member.CreditLimit));
+        Assert.All(result.Data,member=>Assert.Equal(0,member.CreditUsed));
     }
 
     [Fact]

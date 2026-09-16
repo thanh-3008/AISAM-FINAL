@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
@@ -9,10 +10,12 @@ namespace AISAM.Repositories.Repository;
 public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
 {
     private readonly AisamContext _context;
+    private readonly bool _v2;
 
-    public WorkspaceMemberRepository(AisamContext context)
+    public WorkspaceMemberRepository(AisamContext context, IConfiguration? configuration=null)
     {
         _context = context;
+        _v2=string.Equals(configuration?["Rbac:UseV2"],"true",StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<WorkspaceMember?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -56,7 +59,7 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
 
     public async Task<WorkspaceMember> AddAsync(WorkspaceMember member, CancellationToken cancellationToken = default)
     {
-        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        if (member.Role == WorkspaceMemberRoleEnum.Owner || _v2 && member.WorkspaceRoleV2==WorkspaceRoleV2.Owner)
         {
             throw new InvalidOperationException("Use workspace creation or ownership transfer to assign the owner.");
         }
@@ -120,7 +123,7 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
         Guid targetMemberId,
         CancellationToken cancellationToken = default)
     {
-        if (!_context.Database.IsRelational())
+        if (!_context.Database.IsRelational() || _context.Database.CurrentTransaction is not null)
         {
             return await TransferOwnershipCoreAsync(workspaceId, currentOwnerUserId, targetMemberId, false, cancellationToken);
         }
@@ -161,12 +164,16 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
             return false;
         }
 
-        if (member.Role == WorkspaceMemberRoleEnum.Owner)
+        if (member.Role == WorkspaceMemberRoleEnum.Owner || _v2 && member.WorkspaceRoleV2==WorkspaceRoleV2.Owner)
         {
             throw new InvalidOperationException("Workspace owner cannot be removed. Transfer ownership first.");
         }
 
         member.IsActive = false;
+        // Membership revocation must survive a later re-invitation.
+        var teams=await _context.Teams.IgnoreQueryFilters().Where(t=>t.WorkspaceId==member.WorkspaceId).Select(t=>t.Id).ToListAsync(cancellationToken);
+        var teamMembers=await _context.TeamMembers.IgnoreQueryFilters().Where(m=>m.UserId==member.UserId && teams.Contains(m.TeamId)).ToListAsync(cancellationToken);
+        foreach(var tm in teamMembers) tm.IsActive=false;
         await _context.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -191,7 +198,7 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
         var members = await Query()
             .Where(member => member.WorkspaceId == workspaceId && member.IsActive)
             .ToListAsync(cancellationToken);
-        var owners = members.Where(member => member.Role == WorkspaceMemberRoleEnum.Owner).ToList();
+        var owners = members.Where(member => _v2 ? member.WorkspaceRoleV2==WorkspaceRoleV2.Owner : member.Role == WorkspaceMemberRoleEnum.Owner).ToList();
 
         if (owners.Count != 1 || owners[0].UserId != currentOwnerUserId)
         {
@@ -199,13 +206,14 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
         }
 
         var target = members.FirstOrDefault(member => member.Id == targetMemberId);
-        if (target?.Role != WorkspaceMemberRoleEnum.Manager)
+        if (_v2 ? target?.WorkspaceRoleV2!=WorkspaceRoleV2.WorkspaceManager : target?.Role != WorkspaceMemberRoleEnum.Manager)
         {
             throw new InvalidOperationException("Ownership can only be transferred to an active workspace manager.");
         }
 
         var currentOwner = owners[0];
         currentOwner.Role = WorkspaceMemberRoleEnum.Manager;
+        if(_v2) currentOwner.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;
 
         if (saveInTwoSteps)
         {
@@ -213,6 +221,7 @@ public sealed class WorkspaceMemberRepository : IWorkspaceMemberRepository
         }
 
         target.Role = WorkspaceMemberRoleEnum.Owner;
+        if(_v2) target.WorkspaceRoleV2=WorkspaceRoleV2.Owner;
         await _context.SaveChangesAsync(cancellationToken);
         return target;
     }

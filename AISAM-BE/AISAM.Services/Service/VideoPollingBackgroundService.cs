@@ -34,6 +34,7 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                 using var scope = _serviceScopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<AisamContext>();
                 var aiService = scope.ServiceProvider.GetRequiredService<IAIService>();
+                var access = scope.ServiceProvider.GetRequiredService<AISAM.Services.Access.IAccessControlService>();
 
                 var pendingJobs = await dbContext.AiGenerations
                     // The status service reloads the generation after acquiring its per-generation
@@ -76,6 +77,9 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                 {
                     try
                     {
+                        if (access is AISAM.Services.Access.RbacV2AccessAdapter &&
+                            (job.Content?.PrimaryCreatorId is not { } creator || !(await access.CheckAsync(new(creator,job.Content.WorkspaceId,AISAM.Services.Access.AccessResourceKind.Content,job.ContentId,AISAM.Services.Access.ResourcePermission.ContentEdit),stoppingToken)).Allowed))
+                            continue;
                         // Fix for already completed videos that missed the Content update
                         if (job.Status == AiStatusEnum.Completed && job.GeneratedVideoUrl != null && job.Content?.VideoUrl == null)
                         {
@@ -99,7 +103,11 @@ public sealed class VideoPollingBackgroundService : BackgroundService
 
                         // Resolve UserId from Profile or WorkspaceMember
                         Guid userId;
-                        if (job.Content.Profile != null)
+                        if (access is AISAM.Services.Access.RbacV2AccessAdapter)
+                        {
+                            userId=job.Content.PrimaryCreatorId!.Value;
+                        }
+                        else if (job.Content.Profile != null)
                         {
                             userId = job.Content.Profile.UserId;
                         }

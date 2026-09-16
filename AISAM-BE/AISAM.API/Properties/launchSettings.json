@@ -16,7 +16,8 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://0.0.0.0:5027",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Rbac__UseV2": "true"
       }
     },
     "https": {
@@ -26,7 +27,8 @@
       "launchUrl": "swagger",
       "applicationUrl": "https://0.0.0.0:7192;http://0.0.0.0:5027",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Rbac__UseV2": "true"
       }
     },
     "IIS Express": {

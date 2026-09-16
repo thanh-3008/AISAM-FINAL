@@ -9,6 +9,7 @@ public sealed class WorkspaceInvitationResponseDto
     public string WorkspaceName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public WorkspaceMemberRoleEnum Role { get; set; }
+    public string? WorkspaceRole { get; set; }
     public MemberQuotaModeEnum QuotaMode { get; set; }
     public long? CreditLimit { get; set; }
     public Guid InvitedByUserId { get; set; }
@@ -22,6 +23,7 @@ public sealed class AcceptWorkspaceInvitationResponseDto
     public Guid WorkspaceId { get; set; }
     public string WorkspaceName { get; set; } = string.Empty;
     public WorkspaceMemberRoleEnum Role { get; set; }
+    public string? WorkspaceRole { get; set; }
     public MemberQuotaModeEnum QuotaMode { get; set; }
     public long? CreditLimit { get; set; }
 }

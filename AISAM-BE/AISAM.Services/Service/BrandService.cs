@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using AISAM.Common;
 using AISAM.Common.Dtos;
 using AISAM.Common.Dtos.Request;
@@ -19,17 +20,19 @@ namespace AISAM.Services.Service
         private readonly IProfileRepository _profileRepository;
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
         private readonly AisamContext? _context;
+        private readonly bool _v2;
 
         public BrandService(
             IBrandRepository brandRepository,
             IProfileRepository profileRepository,
             IWorkspaceMemberRepository workspaceMemberRepository,
-            AisamContext? context = null)
+            AisamContext? context = null,IConfiguration? configuration=null)
         {
             _brandRepository = brandRepository;
             _profileRepository = profileRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
             _context = context;
+            _v2=configuration?.GetValue<bool>("Rbac:UseV2")==true;
         }
 
         public async Task<GenericResponse<PagedResult<BrandResponseDto>>> GetPagedByWorkspaceIdAsync(
@@ -64,7 +67,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError("Brand not found");
             }
 
-            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: true);
+            var access = await EnsureBrandWorkspaceAccessAsync(brand, workspaceId, userId, cancellationToken, requireOwnerOrManager: !_v2);
             if (!access.Success)
             {
                 return GenericResponse<BrandResponseDto>.CreateError(access.Message);
@@ -81,7 +84,7 @@ namespace AISAM.Services.Service
                 return GenericResponse<BrandResponseDto>.CreateError(message);
             }
 
-            if (membership.Role == WorkspaceMemberRoleEnum.Manager && _context != null)
+            if (!_v2 && membership.Role == WorkspaceMemberRoleEnum.Manager && _context != null)
             {
                 var teamIds = await (from m in _context.TeamMembers
                                      join t in _context.Teams on m.TeamId equals t.Id
@@ -148,7 +151,7 @@ namespace AISAM.Services.Service
 
             var created = await _brandRepository.AddAsync(brand, cancellationToken);
 
-            if (_context != null && membership.Role == WorkspaceMemberRoleEnum.Manager)
+            if (!_v2 && _context != null && membership.Role == WorkspaceMemberRoleEnum.Manager)
             {
                 var teamId = await (from m in _context.TeamMembers
                                     join t in _context.Teams on m.TeamId equals t.Id
@@ -260,6 +263,14 @@ namespace AISAM.Services.Service
                 return GenericResponse<bool>.CreateError("Cannot delete brand with existing products. Please delete or reassign products first.");
             }
 
+            if(_v2 && _context is not null)
+            {
+                var assignments=await _context.TeamBrands.IgnoreQueryFilters().Where(t=>t.BrandId==id).ToListAsync(cancellationToken);
+                var ids=assignments.Select(t=>t.Id).ToArray();
+                var grants=await _context.TeamChannelAccesses.IgnoreQueryFilters().Where(g=>ids.Contains(g.TeamBrandId)).ToListAsync(cancellationToken);
+                foreach(var assignment in assignments)assignment.IsActive=false;
+                foreach(var grant in grants)grant.ScopeEnabledV2=false;
+            }
             brand.IsDeleted = true;
             await _brandRepository.UpdateAsync(brand, cancellationToken);
 
@@ -327,7 +338,7 @@ namespace AISAM.Services.Service
             if (membership == null)
                 return (false, "You are not allowed to access this workspace", null);
 
-            if (membership.Role != WorkspaceMemberRoleEnum.Owner && membership.Role != WorkspaceMemberRoleEnum.Manager)
+            if (_v2 ? !membership.IsActive || membership.WorkspaceRoleV2 is not (WorkspaceRoleV2.Owner or WorkspaceRoleV2.WorkspaceManager) : membership.Role != WorkspaceMemberRoleEnum.Owner && membership.Role != WorkspaceMemberRoleEnum.Manager)
                 return (false, "Only workspace Owner and Manager can manage brands", null);
 
             return (true, string.Empty, membership);
@@ -345,6 +356,12 @@ namespace AISAM.Services.Service
                 return (false, "Brand not found");
             }
 
+            if(_v2 && !requireOwnerOrManager)
+            {
+                if(_context is null)return (false,"Brand not found");
+                var check=await new RbacV2AccessAdapter(_context,new RbacV2AccessResolver(_context)).CheckAsync(new(userId,workspaceId,AccessResourceKind.Brand,brand.Id,ResourcePermission.BrandView),cancellationToken);
+                return check.Allowed?(true,string.Empty):(false,"Brand not found");
+            }
             if (requireOwnerOrManager)
             {
                 var (s, m, _) = await EnsureWorkspaceOwnerOrManagerAsync(workspaceId, userId, cancellationToken);

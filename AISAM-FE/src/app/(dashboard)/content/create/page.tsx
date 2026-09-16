@@ -3,6 +3,8 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
+import TeamScopeSelect from "@/components/content/TeamScopeSelect";
+import { useRbac } from "@/contexts/RbacContext";
 
 import { PLATFORM_CONFIG, CONTENT_TYPES, CREATE_STATUS_OPTIONS, getBrandColor, PlatformIcon, type ContentType, type ContentStatus } from "@/lib/contentConstants";
 import { createContent, uploadContentMedia, parseMultipleImageUrls, type CreateContentPayload } from "@/services/contentService";
@@ -11,6 +13,7 @@ import TagPicker from "@/components/content/TagPicker";
 import VideoPreview from "@/components/content/VideoPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import MultiImageUpload from "@/components/content/MultiImageUpload";
+import ImageGalleryView from "@/components/content/ImageGalleryView";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import { fetchBrands, fetchProducts } from "@/services/brandService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
@@ -25,6 +28,7 @@ const SAMPLE_AVATARS = [
 
 export default function CreateContentPage() {
   const router = useRouter();
+  const rbac = useRbac();
   const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -36,6 +40,7 @@ export default function CreateContentPage() {
   const [form, setForm] = useState({
     title: "",
     brandId: "",
+    teamId: "",
     productId: "",
     type: "TEXT" as ContentType,
     status: "Draft" as ContentStatus,
@@ -183,7 +188,8 @@ export default function CreateContentPage() {
   const selectedProduct = productList.find(p => p.id === form.productId);
   const selectedBrandName = selectedBrand?.name || "";
   const selectedProductName = selectedProduct?.name || "";
-  const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0;
+  const validTeam = (teamId: string, brandId: string) => !rbac || rbac.scopes.some(s => s.teamId === teamId && s.brandId === brandId && (rbac.workspaceRole !== "Member" || s.role === "Manager" || s.role === "ContentCreator"));
+  const isValid = form.title.trim().length > 0 && form.productId && form.brandId.length > 0 && validTeam(form.teamId, form.brandId);
 
   const handleSave = async () => {
     if (typeof window !== "undefined") {
@@ -191,7 +197,7 @@ export default function CreateContentPage() {
     }
     const currentForm = formRef.current;
     const isFormValid = currentForm.title.trim().length > 0 && currentForm.productId && currentForm.brandId.length > 0;
-    if (!isFormValid) return;
+    if (!isFormValid || !validTeam(currentForm.teamId, currentForm.brandId)) return;
     setSaving(true);
     setSaveError(null);
 
@@ -230,6 +236,7 @@ export default function CreateContentPage() {
 
     const payload: CreateContentPayload = {
       brandId: currentForm.brandId,
+      ...(rbac ? { teamId: currentForm.teamId } : {}),
       productId: currentForm.productId || null,
       adType: currentForm.type === "IMAGE" ? 1 : currentForm.type === "VIDEO" ? 2 : 0,
       title: currentForm.title,
@@ -342,7 +349,7 @@ export default function CreateContentPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Brand <span className="text-danger-red">*</span></label>
-                    <select value={form.brandId} onChange={(e) => update({ brandId: e.target.value, productId: "" })}
+                    <select value={form.brandId} onChange={(e) => update({ brandId: e.target.value, productId: "", teamId: "" })}
                       className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all">
                       {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
@@ -357,6 +364,7 @@ export default function CreateContentPage() {
                   </div>
                 </div>
 
+                <TeamScopeSelect brandId={form.brandId} value={form.teamId} onChange={teamId => update({ teamId })} />
                 {/* Content Type */}
                 <div>
                   <label className="text-label-sm text-on-surface-variant font-semibold mb-1.5 block">Content Type</label>
@@ -665,14 +673,14 @@ export default function CreateContentPage() {
                           {form.hashtags.map((h) => `#${h}`).join(" ")}
                         </p>
                       )}
-                      {!form.videoUrl && (form.thumbnail || form.imageUrls[0] || form.imageUrl) && (
-                        <div className="border-t border-b border-[#e4e6eb]">
-                          <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
-                          {form.imageUrls.length > 1 && (
-                            <div className="flex items-center gap-1 px-3 py-1 bg-[#f0f2f5] border-t border-[#e4e6eb]">
-                              <span className="material-symbols-outlined text-[12px] text-[#65676b]">photo_library</span>
-                              <span className="text-[11px] text-[#65676b]">{form.imageUrls.length} photos</span>
+                      {!form.videoUrl && (form.thumbnail || form.imageUrls.length > 0 || form.imageUrl) && (
+                        <div className="border-t border-b border-[#e4e6eb] bg-[#f0f2f5]">
+                          {form.imageUrls.length > 1 ? (
+                            <div className="p-2">
+                              <ImageGalleryView images={form.imageUrls} title={form.title} />
                             </div>
+                          ) : (
+                            <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full max-h-[300px] object-contain bg-[#f0f2f5]" />
                           )}
                         </div>
                       )}
@@ -712,13 +720,17 @@ export default function CreateContentPage() {
                         <p className="text-[12px] font-semibold text-[#262626] flex-1">{selectedBrandName || "brand"}</p>
                         <span className="material-symbols-outlined text-[18px] text-[#262626]">more_horiz</span>
                       </div>
-                      <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef]">
+                      <div className="aspect-square bg-[#fafafa] flex items-center justify-center border-t border-b border-[#efefef] overflow-hidden">
                         {form.videoUrl ? (
                           <VideoPreview
                             src={form.videoUrl}
                             poster={form.thumbnail}
                             className="w-full h-full"
                           />
+                        ) : form.imageUrls.length > 1 ? (
+                          <div className="w-full h-full p-2 flex items-center justify-center">
+                            <ImageGalleryView images={form.imageUrls} title={form.title} />
+                          </div>
                         ) : (form.thumbnail || form.imageUrls[0] || form.imageUrl) ? (
                           <img src={form.thumbnail || form.imageUrls[0] || form.imageUrl} alt="" className="w-full h-full object-contain" />
                         ) : (

@@ -20,7 +20,9 @@ try
     result["databaseReachable"] = true;
     result["readOnly"] = true;
     result["appliedMigrations"] = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
-    result["pendingMigrations"] = (await db.Database.GetPendingMigrationsAsync()).ToArray();
+    var pending = (await db.Database.GetPendingMigrationsAsync()).ToArray();
+    result["pendingMigrations"] = pending;
+    if (pending.Length > 0) Environment.ExitCode = 1;
     var counts = new Dictionary<string, long>();
     foreach (var table in new[] { "contents", "posts", "assets", "automation_plans", "social_integrations" })
     {
@@ -39,6 +41,24 @@ try
                 missing.Add($"{table.Name}.{column.Name} ({column.StoreType}, nullable={column.IsNullable})");
     result["missingModelColumns"] = missing;
     if (missing.Count > 0) Environment.ExitCode = 1;
+    if (args.Contains("--rbac-v2"))
+    {
+        await using var viewCheck = new NpgsqlCommand("SELECT to_regclass('public.rbac_v2_preflight') IS NOT NULL", connection);
+        var exists = (bool)(await viewCheck.ExecuteScalarAsync())!;
+        result["rbacPreflightAvailable"] = exists;
+        if (!exists) Environment.ExitCode = 1;
+        else
+        {
+            var issues = new Dictionary<string, long>();
+            await using var command = new NpgsqlCommand("SELECT issue,count(*) FROM public.rbac_v2_preflight GROUP BY issue ORDER BY issue", connection);
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) issues[reader.GetString(0)] = reader.GetInt64(1);
+            result["rbacIssues"] = issues;
+            result["rbacReviewRequired"] = issues.Count > 0;
+            // Closed legacy scopes need an explicit disposition, never automatic enabling.
+            if (issues.Count > 0) Environment.ExitCode = 1;
+        }
+    }
 }
 catch (Exception ex)
 {

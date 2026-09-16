@@ -7,6 +7,7 @@ import WorkspaceBoundary from "@/components/WorkspaceBoundary";
 
 import { useEffect, useState } from "react";
 import { setToken, removeToken, getStoredUser } from "@/lib/auth";
+import { resetRedirectState } from "@/lib/apiClient";
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const { open } = useSidebar();
@@ -15,6 +16,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Dashboard can only remain mounted with an authenticated session. Clear
+      // stale module flags preserved by development Fast Refresh or a previous
+      // interrupted logout so API calls cannot be held indefinitely.
+      if (localStorage.getItem("aisam_token")) resetRedirectState();
       const token = localStorage.getItem("aisam_admin_token");
       if (token) {
         setAdminToken(token);

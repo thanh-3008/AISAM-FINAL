@@ -8,6 +8,7 @@ part 'content_request.g.dart';
 class CreateContentRequest with _$CreateContentRequest {
   const factory CreateContentRequest({
     required String brandId,
+    String? teamId,
     String? productId,
     required AdTypeEnum adType,
     String? title,

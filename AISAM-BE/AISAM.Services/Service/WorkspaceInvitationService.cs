@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using AISAM.Services.Access;
 using AISAM.Common;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Dtos.Response;
@@ -14,12 +16,14 @@ namespace AISAM.Services.Service;
 
 public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
 {
+    private readonly bool _v2;
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IWorkspaceInvitationRepository _workspaceInvitationRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
+    private readonly IPostCommitActionQueue? _postCommitActions;
     private readonly string _frontendBaseUrl;
 
     public WorkspaceInvitationService(
@@ -29,14 +33,17 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
         IEmailService emailService,
-        IOptions<FrontendSettings> frontendSettings)
+        IOptions<FrontendSettings> frontendSettings, IConfiguration? configuration=null,
+        IPostCommitActionQueue? postCommitActions=null)
     {
         _workspaceRepository = workspaceRepository;
+        _v2=configuration?.GetValue<bool>("Rbac:UseV2")==true;
         _workspaceMemberRepository = workspaceMemberRepository;
         _workspaceInvitationRepository = workspaceInvitationRepository;
         _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
         _emailService = emailService;
+        _postCommitActions = postCommitActions;
         _frontendBaseUrl = frontendSettings.Value.BaseUrl.TrimEnd('/');
     }
 
@@ -54,7 +61,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
 
         var inviterMembership = workspace.Members.FirstOrDefault(member =>
             member.UserId == inviterUserId && member.IsActive);
-        if (inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? !WorkspaceHrV2Policy.CanInvite(inviterMembership,request.WorkspaceRole) : inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError(
                 "Only the workspace owner can invite members.",
@@ -83,7 +90,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 "WORKSPACE_FEATURE_NOT_AVAILABLE");
         }
 
-        if (!Enum.IsDefined(request.Role) || request.Role == WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? request.WorkspaceRole is not (WorkspaceRoleV2.Member or WorkspaceRoleV2.WorkspaceManager) : !Enum.IsDefined(request.Role) || request.Role == WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<WorkspaceInvitationResponseDto>.CreateError("Invalid invitation role.");
         }
@@ -133,7 +140,8 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             WorkspaceId = workspaceId,
             InvitedByUserId = inviterUserId,
             Email = normalizedEmail,
-            Role = request.Role,
+            Role = _v2 ? WorkspaceMemberRoleEnum.Viewer : request.Role,
+            WorkspaceRoleV2=_v2?request.WorkspaceRole:null,
             QuotaMode = request.QuotaMode,
             CreditLimit = request.QuotaMode == MemberQuotaModeEnum.SharedPool ? null : request.CreditLimit,
             Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
@@ -143,7 +151,10 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
         var inviter = await _userRepository.GetByIdAsync(inviterUserId);
         var inviterName = inviter?.FullName ?? inviter?.Email ?? "Workspace owner";
         var invitationLink = $"{_frontendBaseUrl}/invitation/{Uri.EscapeDataString(invitation.Token)}";
-        await _emailService.SendTeamInvitationAsync(normalizedEmail, workspace.Name, inviterName, invitationLink);
+        Func<CancellationToken,Task> sendInvitation = _ =>
+            _emailService.SendTeamInvitationAsync(normalizedEmail, workspace.Name, inviterName, invitationLink);
+        if (_postCommitActions?.TryEnqueue(sendInvitation) != true)
+            await sendInvitation(cancellationToken);
 
         invitation.Workspace = workspace;
         return GenericResponse<WorkspaceInvitationResponseDto>.CreateSuccess(
@@ -224,6 +235,12 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
                 HttpStatusCode.Conflict);
         }
 
+        if(_v2)
+        {
+            var inviter=await _workspaceMemberRepository.GetByWorkspaceAndUserAsync(invitation.WorkspaceId,invitation.InvitedByUserId,cancellationToken);
+            if(!user.IsActive || !WorkspaceHrV2Policy.CanInvite(inviter,invitation.WorkspaceRoleV2))
+                return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateError("Invitation authority has been revoked.",HttpStatusCode.Forbidden);
+        }
         var membership = await _workspaceInvitationRepository.AcceptAsync(invitation, userId, cancellationToken);
         return GenericResponse<AcceptWorkspaceInvitationResponseDto>.CreateSuccess(
             new AcceptWorkspaceInvitationResponseDto
@@ -255,7 +272,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
     {
         var inviterMembership = (await _workspaceMemberRepository.GetByWorkspaceIdAsync(workspaceId, cancellationToken))
             .FirstOrDefault(m => m.UserId == userId && m.IsActive);
-        if (inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
+        if (_v2 ? !WorkspaceHrV2Policy.CanInvite(inviterMembership,WorkspaceRoleV2.Member) : inviterMembership?.Role != WorkspaceMemberRoleEnum.Owner)
         {
             return GenericResponse<bool>.CreateError("Only the workspace owner can revoke invitations.", HttpStatusCode.Forbidden);
         }
@@ -271,6 +288,8 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             return GenericResponse<bool>.CreateError("Invitation is no longer pending.", HttpStatusCode.BadRequest);
         }
 
+        if(_v2 && !WorkspaceHrV2Policy.CanInvite(inviterMembership,invitation.WorkspaceRoleV2))
+            return GenericResponse<bool>.CreateError("Cannot revoke an invitation above your role.",HttpStatusCode.Forbidden);
         invitation.RevokedAt = DateTime.UtcNow;
         await _workspaceInvitationRepository.UpdateAsync(invitation, cancellationToken);
 
@@ -324,6 +343,7 @@ public sealed class WorkspaceInvitationService : IWorkspaceInvitationService
             WorkspaceName = invitation.Workspace.Name,
             Email = invitation.Email,
             Role = invitation.Role,
+            WorkspaceRole=invitation.WorkspaceRoleV2?.ToString(),
             QuotaMode = invitation.QuotaMode,
             CreditLimit = invitation.CreditLimit,
             InvitedByUserId = invitation.InvitedByUserId,

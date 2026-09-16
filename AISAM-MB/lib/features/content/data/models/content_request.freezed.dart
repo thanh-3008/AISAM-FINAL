@@ -22,6 +22,7 @@ CreateContentRequest _$CreateContentRequestFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$CreateContentRequest {
   String get brandId => throw _privateConstructorUsedError;
+  String? get teamId => throw _privateConstructorUsedError;
   String? get productId => throw _privateConstructorUsedError;
   AdTypeEnum get adType => throw _privateConstructorUsedError;
   String? get title => throw _privateConstructorUsedError;
@@ -54,6 +55,7 @@ abstract class $CreateContentRequestCopyWith<$Res> {
   @useResult
   $Res call({
     String brandId,
+    String? teamId,
     String? productId,
     AdTypeEnum adType,
     String? title,
@@ -88,6 +90,7 @@ class _$CreateContentRequestCopyWithImpl<
   @override
   $Res call({
     Object? brandId = null,
+    Object? teamId = freezed,
     Object? productId = freezed,
     Object? adType = null,
     Object? title = freezed,
@@ -107,6 +110,10 @@ class _$CreateContentRequestCopyWithImpl<
                 ? _value.brandId
                 : brandId // ignore: cast_nullable_to_non_nullable
                       as String,
+            teamId: freezed == teamId
+                ? _value.teamId
+                : teamId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             productId: freezed == productId
                 ? _value.productId
                 : productId // ignore: cast_nullable_to_non_nullable
@@ -172,6 +179,7 @@ abstract class _$$CreateContentRequestImplCopyWith<$Res>
   @useResult
   $Res call({
     String brandId,
+    String? teamId,
     String? productId,
     AdTypeEnum adType,
     String? title,
@@ -202,6 +210,7 @@ class __$$CreateContentRequestImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? brandId = null,
+    Object? teamId = freezed,
     Object? productId = freezed,
     Object? adType = null,
     Object? title = freezed,
@@ -221,6 +230,10 @@ class __$$CreateContentRequestImplCopyWithImpl<$Res>
             ? _value.brandId
             : brandId // ignore: cast_nullable_to_non_nullable
                   as String,
+        teamId: freezed == teamId
+            ? _value.teamId
+            : teamId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         productId: freezed == productId
             ? _value.productId
             : productId // ignore: cast_nullable_to_non_nullable
@@ -279,6 +292,7 @@ class __$$CreateContentRequestImplCopyWithImpl<$Res>
 class _$CreateContentRequestImpl implements _CreateContentRequest {
   const _$CreateContentRequestImpl({
     required this.brandId,
+    this.teamId,
     this.productId,
     required this.adType,
     this.title,
@@ -298,6 +312,8 @@ class _$CreateContentRequestImpl implements _CreateContentRequest {
 
   @override
   final String brandId;
+  @override
+  final String? teamId;
   @override
   final String? productId;
   @override
@@ -333,7 +349,7 @@ class _$CreateContentRequestImpl implements _CreateContentRequest {
 
   @override
   String toString() {
-    return 'CreateContentRequest(brandId: $brandId, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, status: $status, isAiGenerated: $isAiGenerated, tags: $tags)';
+    return 'CreateContentRequest(brandId: $brandId, teamId: $teamId, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, status: $status, isAiGenerated: $isAiGenerated, tags: $tags)';
   }
 
   @override
@@ -342,6 +358,7 @@ class _$CreateContentRequestImpl implements _CreateContentRequest {
         (other.runtimeType == runtimeType &&
             other is _$CreateContentRequestImpl &&
             (identical(other.brandId, brandId) || other.brandId == brandId) &&
+            (identical(other.teamId, teamId) || other.teamId == teamId) &&
             (identical(other.productId, productId) ||
                 other.productId == productId) &&
             (identical(other.adType, adType) || other.adType == adType) &&
@@ -372,6 +389,7 @@ class _$CreateContentRequestImpl implements _CreateContentRequest {
   int get hashCode => Object.hash(
     runtimeType,
     brandId,
+    teamId,
     productId,
     adType,
     title,
@@ -407,6 +425,7 @@ class _$CreateContentRequestImpl implements _CreateContentRequest {
 abstract class _CreateContentRequest implements CreateContentRequest {
   const factory _CreateContentRequest({
     required final String brandId,
+    final String? teamId,
     final String? productId,
     required final AdTypeEnum adType,
     final String? title,
@@ -426,6 +445,8 @@ abstract class _CreateContentRequest implements CreateContentRequest {
 
   @override
   String get brandId;
+  @override
+  String? get teamId;
   @override
   String? get productId;
   @override

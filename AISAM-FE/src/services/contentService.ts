@@ -64,6 +64,7 @@ export interface ContentItem {
   status: ContentStatus;
   thumbnail: string;
   imageUrl?: string;
+  imageUrls?: string[];
   videoUrl?: string;
   textContent?: string;
   richTextJson?: string | null;
@@ -91,6 +92,7 @@ export interface ContentDetail {
   richTextJson?: string | null;
   richTextVersion?: number | null;
   imageUrl?: string;
+  imageUrls?: string[];
   videoUrl?: string;
   styleDescription?: string;
   contextDescription?: string;
@@ -180,25 +182,57 @@ const STATUS_TO_API_STATUS: Record<ContentStatus, ContentApiStatus> = {
 
 /**
  * Parse the backend's image_url JSONB field into a list of URLs.
- * Handles: null, single URL string, JSON array, JSON object.
+ * Handles: null, single URL string, JSON array of strings or objects, JSON object.
  */
 export function parseMultipleImageUrls(imageUrl: string | null | undefined): string[] {
   const raw = (imageUrl ?? "").trim();
   if (!raw) return [];
 
-  if (raw.startsWith("[")) {
+  const extractFromValue = (value: unknown): string[] => {
+    if (!value) return [];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        try {
+          return extractFromValue(JSON.parse(trimmed));
+        } catch { /* fall through */ }
+      }
+      const matches = trimmed.match(/https?:\/\/[^\s"'\]\[{}]+/g);
+      return matches ? matches.map((m) => m.trim()) : [trimmed];
+    }
+    if (Array.isArray(value)) {
+      const list: string[] = [];
+      for (const item of value) {
+        list.push(...extractFromValue(item));
+      }
+      return list;
+    }
+    if (typeof value === "object" && value !== null) {
+      const record = value as Record<string, unknown>;
+      if (Array.isArray(record.urls)) return extractFromValue(record.urls);
+      if (Array.isArray(record.images)) return extractFromValue(record.images);
+      if (Array.isArray(record.items)) return extractFromValue(record.items);
+      for (const key of ["url", "secure_url", "imageUrl", "image_url", "src"]) {
+        if (record[key]) return extractFromValue(record[key]);
+      }
+    }
+    return [];
+  };
+
+  if (raw.startsWith("[") || raw.startsWith("{")) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((u): u is string => typeof u === "string" && u.trim() !== "")
-          .map((u) => u.trim());
-      }
+      const results = extractFromValue(parsed);
+      return Array.from(new Set(results.filter((u) => typeof u === "string" && u.trim() !== "")));
     } catch { /* fall through */ }
   }
 
-  const match = raw.match(/https?:\/\/[^\s"'\]\[{}]+/i);
-  return match ? [match[0]] : raw ? [raw] : [];
+  const allMatches = raw.match(/https?:\/\/[^\s"'\]\[{}]+/g);
+  if (allMatches && allMatches.length > 0) {
+    return Array.from(new Set(allMatches.map((m) => m.trim())));
+  }
+  return raw ? [raw] : [];
 }
 
 export const parseApiUrl = (url?: string | null): string => {
@@ -238,6 +272,8 @@ export const parseApiUrl = (url?: string | null): string => {
 };
 
 export function apiItemToContentItem(api: ContentApiItem): ContentItem {
+  const imageUrls = parseMultipleImageUrls(api.imageUrl);
+  const primaryImage = imageUrls[0] || parseApiUrl(api.imageUrl) || undefined;
   return {
     id: api.id,
     title: api.title || "",
@@ -246,8 +282,9 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: mapContentApiStatus(api.status),
-    thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
-    imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    thumbnail: parseApiUrl(api.thumbnailUrl) || primaryImage || parseApiUrl(api.videoUrl) || "",
+    imageUrl: primaryImage,
+    imageUrls,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
     textContent: api.textContent || "",
     createdAt: api.createdAt,
@@ -259,6 +296,8 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
 }
 
 export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
+  const imageUrls = parseMultipleImageUrls(api.imageUrl);
+  const primaryImage = imageUrls[0] || parseApiUrl(api.imageUrl) || undefined;
   return {
     id: api.id,
     title: api.title || "",
@@ -267,12 +306,13 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: mapContentApiStatus(api.status),
-    thumbnail: parseApiUrl(api.thumbnailUrl) || parseApiUrl(api.imageUrl) || parseApiUrl(api.videoUrl) || "",
+    thumbnail: parseApiUrl(api.thumbnailUrl) || primaryImage || parseApiUrl(api.videoUrl) || "",
     createdAt: api.createdAt,
     platforms: [],
     updatedAt: api.updatedAt,
     textContent: api.textContent, richTextJson: api.richTextJson, richTextVersion: api.richTextVersion,
-    imageUrl: parseApiUrl(api.imageUrl) || undefined,
+    imageUrl: primaryImage,
+    imageUrls,
     videoUrl: parseApiUrl(api.videoUrl) || undefined,
     description: api.contextDescription || undefined,
     tags: api.tags ? JSON.parse(api.tags) : [],
@@ -365,9 +405,10 @@ export async function updateContentDetails(id: string, payload: Partial<CreateCo
 
 /** Serialize imageUrls[] to the JSON string format the backend expects */
 function resolveImageUrlField(payload: CreateContentPayload | UpdateContentPayload): string | null | undefined {
-  if ('imageUrls' in payload && payload.imageUrls && payload.imageUrls.length > 0) {
+  if ('imageUrls' in payload && payload.imageUrls !== undefined) {
+    if (payload.imageUrls === null || payload.imageUrls.length === 0) return "";
     const valid = payload.imageUrls.filter((u) => u && u.trim() !== "");
-    if (valid.length > 0) return JSON.stringify(valid);
+    return JSON.stringify(valid);
   }
   return 'imageUrl' in payload ? (payload as CreateContentPayload).imageUrl : undefined;
 }
@@ -383,16 +424,23 @@ export async function createContent(data: CreateContentPayload): Promise<Content
   return null;
 }
 
-export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {
+export async function updateContentWithResult(id: string, data: UpdateContentPayload): Promise<{ success: boolean; error?: string; data?: ContentItem }> {
   try {
-    // Merge imageUrls into imageUrl for backward-compatible API
     const { imageUrls, ...rest } = data;
     const apiData = { ...rest, imageUrl: resolveImageUrlField(data) ?? rest.imageUrl };
     const res: GenericResponse<ContentApiItem> = await apiClient(`/content/${id}`, { data: apiData, method: "PUT" });
-    return res?.success === true;
-  } catch {
-    return false;
+    if (res?.success === true) {
+      return { success: true, data: res.data ? apiItemToContentItem(res.data) : undefined };
+    }
+    return { success: false, error: res?.message || "Failed to update content" };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to update content" };
   }
+}
+
+export async function updateContent(id: string, data: UpdateContentPayload): Promise<boolean> {
+  const result = await updateContentWithResult(id, data);
+  return result.success;
 }
 
 export async function submitForApproval(id: string): Promise<{ success: boolean; error?: string }> {
@@ -501,6 +549,7 @@ export async function chatWithAI(
   conversationId?: string,
   _history?: { role: string; text: string }[],
   options?: {
+    teamId?: string;
     generationMode?: "exact_product_reference" | "normal_generation";
     uploadedPrimaryImageUrl?: string | null;
     selectedProductImageUrl?: string | null;
@@ -516,6 +565,7 @@ export async function chatWithAI(
         productId,
         conversationId,
         generationMode: options?.generationMode,
+        teamId: options?.teamId,
         uploadedPrimaryImageUrl: options?.uploadedPrimaryImageUrl ?? null,
         selectedProductImageUrl: options?.selectedProductImageUrl ?? null,
         useOriginalProductImages: options?.useOriginalProductImages === true,

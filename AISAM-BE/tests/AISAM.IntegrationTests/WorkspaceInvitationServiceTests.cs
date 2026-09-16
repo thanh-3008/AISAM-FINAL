@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using AISAM.Common.Dtos.Request;
 using AISAM.Common.Models;
 using AISAM.Data.Enumeration;
@@ -14,6 +15,27 @@ namespace AISAM.IntegrationTests;
 
 public class WorkspaceInvitationServiceTests
 {
+    [Fact]
+    public async Task V2InviteAcceptAndRevokedAuthority()
+    {
+        await using var context=CreateContext();
+        var f=SeedWorkspace(context,WorkspaceTypeEnum.Business);
+        var actor=await context.WorkspaceMembers.SingleAsync();actor.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;await context.SaveChangesAsync();
+        var service=CreateService(context,v2:true);
+        var denied=await service.InviteAsync(f.Workspace.Id,f.Owner.Id,new CreateWorkspaceInvitationRequest{Email="bad@example.test",WorkspaceRole=WorkspaceRoleV2.WorkspaceManager});
+        Assert.False(denied.Success);
+        var invited=await service.InviteAsync(f.Workspace.Id,f.Owner.Id,new CreateWorkspaceInvitationRequest{Email="new@example.test",WorkspaceRole=WorkspaceRoleV2.Member});
+        Assert.True(invited.Success);
+        var invitation=await context.WorkspaceInvitations.SingleAsync();
+        var user=AddUser(context,"new@example.test");
+        actor.WorkspaceRoleV2=WorkspaceRoleV2.Member;await context.SaveChangesAsync();
+        Assert.False((await service.AcceptAsync(user.Id,new AcceptWorkspaceInvitationRequest{Token=invitation.Token})).Success);
+        actor.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;await context.SaveChangesAsync();
+        Assert.True((await service.AcceptAsync(user.Id,new AcceptWorkspaceInvitationRequest{Token=invitation.Token})).Success);
+        Assert.Equal(WorkspaceRoleV2.Member,(await context.WorkspaceMembers.SingleAsync(m=>m.UserId==user.Id)).WorkspaceRoleV2);
+        Assert.Empty(await context.TeamMembers.ToListAsync());
+        Assert.False((await service.AcceptAsync(user.Id,new AcceptWorkspaceInvitationRequest{Token=invitation.Token})).Success);
+    }
     [Fact]
     public async Task InviteAsync_AllowsBusinessWorkspaceOwnerAndSendsEmail()
     {
@@ -33,6 +55,32 @@ public class WorkspaceInvitationServiceTests
         Assert.Equal("invited@example.com", emailService.LastRecipient);
         Assert.Contains("/invitation/", emailService.LastInvitationLink);
         Assert.Equal(1, await context.WorkspaceInvitations.CountAsync());
+    }
+
+    [Fact]
+    public async Task InviteAsync_DefersEmailUntilWorkspaceTransactionCompletes()
+    {
+        await using var context = CreateContext();
+        var fixture = SeedWorkspace(context, WorkspaceTypeEnum.Business);
+        var emailService = new FakeEmailService();
+        var postCommitActions = new PostCommitActionQueue();
+        postCommitActions.Begin();
+        var service = CreateService(context, emailService, postCommitActions: postCommitActions);
+
+        var result = await service.InviteAsync(fixture.Workspace.Id, fixture.Owner.Id, new CreateWorkspaceInvitationRequest
+        {
+            Email = "deferred@example.com",
+            Role = WorkspaceMemberRoleEnum.ContentCreator
+        });
+
+        Assert.True(result.Success);
+        Assert.Null(emailService.LastRecipient);
+        Assert.Single(await context.WorkspaceInvitations.ToListAsync());
+
+        await postCommitActions.CompleteAsync();
+
+        Assert.Equal("deferred@example.com", emailService.LastRecipient);
+        Assert.Contains("/invitation/", emailService.LastInvitationLink);
     }
 
     [Fact]
@@ -296,16 +344,18 @@ public class WorkspaceInvitationServiceTests
         Assert.Null((await context.WorkspaceInvitations.SingleAsync()).AcceptedAt);
     }
 
-    private static WorkspaceInvitationService CreateService(AisamContext context, IEmailService? emailService = null)
+    private static WorkspaceInvitationService CreateService(AisamContext context, IEmailService? emailService = null, bool v2=false,
+        IPostCommitActionQueue? postCommitActions=null)
     {
+        var configuration=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Rbac:UseV2"]=v2.ToString() }).Build();
         return new WorkspaceInvitationService(
             new WorkspaceRepository(context),
             new WorkspaceMemberRepository(context),
-            new WorkspaceInvitationRepository(context),
+            new WorkspaceInvitationRepository(context,configuration),
             new SubscriptionRepository(context),
             new UserRepository(context),
             emailService ?? new FakeEmailService(),
-            Options.Create(new FrontendSettings { BaseUrl = "http://localhost:3000" }));
+            Options.Create(new FrontendSettings { BaseUrl = "http://localhost:3000" }),configuration,postCommitActions);
     }
 
     private static WorkspaceInvitationFixture SeedWorkspace(

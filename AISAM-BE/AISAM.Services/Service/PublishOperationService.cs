@@ -44,6 +44,8 @@ public sealed class PublishOperationService(AisamContext db,IAccessControlServic
             return existing;
         }
         var content=await db.Contents.SingleAsync(c=>c.Id==contentId,ct);
+        if(access is RbacV2AccessAdapter && scheduledSnapshot.HasValue && scheduledSnapshot!=content.ApprovedSnapshotId)
+            throw new MediaConflictException();
         if(!scheduledSnapshot.HasValue && (content.MediaVersion!=version||content.ApprovedSnapshotId is null))throw new MediaConflictException();
         var snapshot=await db.PublishSnapshots.Include(s=>s.Media).SingleAsync(s=>s.Id==(scheduledSnapshot ?? content.ApprovedSnapshotId),ct);
         if(snapshot.ContentId!=contentId || snapshot.WorkspaceId!=workspace || content.WorkspaceId!=workspace)throw new ResourceMutationDeniedException();

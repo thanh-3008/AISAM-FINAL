@@ -1,9 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { checkPermissions, type PermissionCheck } from "@/services/permissionService";
 import { getStoredActiveWorkspace } from "@/stores/workspace-store";
 
-export function useResourcePermissions(checks: PermissionCheck[]) {
+export interface ResourcePermissionChecker {
+  (index: number): boolean;
+  isReady: boolean;
+}
+
+export function useResourcePermissions(checks: PermissionCheck[]): ResourcePermissionChecker {
   const key = JSON.stringify([getStoredActiveWorkspace()?.id, checks]);
   const [result, setResult] = useState<{ key: string; allowed: boolean[] }>({ key: "", allowed: [] });
   const [revision, setRevision] = useState(0);
@@ -20,5 +25,14 @@ export function useResourcePermissions(checks: PermissionCheck[]) {
       .catch(() => { if (!cancelled) setResult({ key, allowed: [] }); });
     return () => { cancelled = true; };
   }, [key, revision]);
-  return (index: number) => result.key === key && result.allowed[index] === true;
+
+  const isReady = result.key === key;
+  return useMemo(
+    () =>
+      Object.assign(
+        (index: number) => isReady && result.allowed[index] === true,
+        { isReady }
+      ),
+    [isReady, result.allowed]
+  );
 }

@@ -13,6 +13,7 @@ class WorkspaceResponseModel with _$WorkspaceResponseModel {
     required int workspaceType, // enum from backend
     required int status, // enum
     required int currentUserRole, // enum
+    String? workspaceRole,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _WorkspaceResponseModel;
@@ -29,6 +30,7 @@ class WorkspaceMemberResponseModel with _$WorkspaceMemberResponseModel {
     required String email,
     String? fullName,
     required int role, // enum
+    String? workspaceRole,
     int? quotaMode,
     int? creditLimit,
     int? creditUsed,

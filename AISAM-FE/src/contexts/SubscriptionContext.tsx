@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { getCurrentSubscription } from "@/services/profileSettingsService";
+import { useRbac } from "@/contexts/RbacContext";
 
 export type SubscriptionStatus = "active" | "expired" | "limited" | "archived" | "none";
 
@@ -26,10 +27,12 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
 });
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
+  const rbac = useRbac();
   const [status, setStatus] = useState<SubscriptionStatus>("none");
   const [subscriptionEndDate, setSubscriptionEndDate] = useState<string | null>(null);
 
   const checkSubscription = useCallback(async () => {
+    if (rbac && !rbac.actions.includes("billing.read")) { setStatus("none"); setSubscriptionEndDate(null); return; }
     try {
       const subscription = await getCurrentSubscription();
       if (subscription?.endDate) {
@@ -53,7 +56,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     } catch {
       setStatus("active");
     }
-  }, []);
+  }, [rbac]);
 
   useEffect(() => {
     checkSubscription();

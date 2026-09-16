@@ -450,7 +450,8 @@ namespace AISAM.Services.Service
                 User = user,
                 WorkspaceId = personalWorkspace.Id,
                 Workspace = personalWorkspace,
-                Role = WorkspaceMemberRoleEnum.Owner
+                Role = WorkspaceMemberRoleEnum.Owner,
+                WorkspaceRoleV2 = WorkspaceRoleV2.Owner
             });
         }
 

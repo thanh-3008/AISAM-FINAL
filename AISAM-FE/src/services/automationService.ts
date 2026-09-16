@@ -11,6 +11,7 @@ export interface AutomationItem {
   rowIndex: number;
   platform: string;
   brandId?: string;
+  teamId?: string;
   brandName: string;
   productId?: string;
   contentId?: string;
@@ -158,7 +159,7 @@ export async function fetchAutomationPerformance(id: string): Promise<Automation
 }
 
 export async function updateAutomationItem(planId: string, itemId: string, request: {
-  brandId: string; productId?: string; topic: string; platform: string; contentType: string;
+  brandId: string; teamId?: string; productId?: string; topic: string; platform: string; contentType: string;
   objective?: string; tone?: string; cta?: string; notes?: string; scheduledAt: string;
 }): Promise<AutomationPlan> {
   const response = await apiClient(`/automation-plans/${planId}/items/${itemId}`, { method: "PUT", data: request }) as ApiResponse<AutomationPlan>;

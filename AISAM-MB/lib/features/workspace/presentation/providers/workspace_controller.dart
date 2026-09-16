@@ -35,7 +35,7 @@ class WorkspaceController extends _$WorkspaceController {
     try {
       final storage = ref.read(secureStorageProvider);
       await storage.saveActiveWorkspaceId(workspaceId);
-      ref.read(activeWorkspaceControllerProvider.notifier).refresh();
+      await ref.read(activeWorkspaceControllerProvider.notifier).refresh();
       return true;
     } catch (e) {
       return false;

@@ -259,7 +259,7 @@ export async function deleteSocialAccount(accountId: string): Promise<boolean> {
   return res?.data === true;
 }
 
-export async function fetchSocialIntegrations(brandId?: string): Promise<SocialIntegration[]> {
+export async function fetchSocialIntegrations(brandId?: string, strict = false): Promise<SocialIntegration[]> {
   try {
     if (brandId) {
       const res: GenericResponse<BESocialIntegrationDto[]> = await apiClient(`/social/integrations/brand/${brandId}`);
@@ -276,7 +276,7 @@ export async function fetchSocialIntegrations(brandId?: string): Promise<SocialI
         }));
       }
     }
-  } catch { /* fallback */ }
+  } catch (error) { if (strict) throw error; }
   return [];
 }
 

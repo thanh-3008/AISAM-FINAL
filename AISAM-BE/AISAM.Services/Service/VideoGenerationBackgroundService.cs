@@ -39,6 +39,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                 using var scope = _serviceScopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<AisamContext>();
                 var orchestrator = scope.ServiceProvider.GetRequiredService<IVideoGenerationOrchestrator>();
+                var access = scope.ServiceProvider.GetRequiredService<AISAM.Services.Access.IAccessControlService>();
                 var mediaStorage = scope.ServiceProvider.GetRequiredService<IMediaStorageService>();
                 var settings = scope.ServiceProvider.GetRequiredService<IOptions<VideoProviderSettings>>().Value;
 
@@ -59,6 +60,11 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                 {
                     try
                     {
+                        if (!await AISAM.Services.Access.VideoJobAccess.CanRunAsync(dbContext,access,job.UserId,job.WorkspaceId,stoppingToken))
+                        {
+                            job.Status=AiStatusEnum.Failed;job.ErrorMessage="VIDEO_ACCESS_REVOKED";job.CompletedAt=DateTime.UtcNow;
+                            await dbContext.SaveChangesAsync(stoppingToken);continue;
+                        }
                         if (job.CreatedAt < timeoutThreshold)
                         {
                             job.Status = AiStatusEnum.Failed;

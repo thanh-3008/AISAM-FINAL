@@ -13,6 +13,7 @@ public sealed class AutomationItem
     [MaxLength(30), Column("platform")] public string Platform { get; set; } = string.Empty;
     [MaxLength(64), Column("idempotency_key")] public string IdempotencyKey { get; set; } = string.Empty;
     [Column("brand_id")] public Guid? BrandId { get; set; }
+    [Column("team_id")] public Guid? TeamId { get; set; }
     [Column("product_id")] public Guid? ProductId { get; set; }
     [Column("content_id")] public Guid? ContentId { get; set; }
     [Column("content_calendar_id")] public Guid? ContentCalendarId { get; set; }

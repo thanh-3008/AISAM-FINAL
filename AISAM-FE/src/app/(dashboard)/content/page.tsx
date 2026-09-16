@@ -1,10 +1,12 @@
 "use client";
+import { useRbac } from "@/contexts/RbacContext";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { PLATFORM_CONFIG, ALL_PLATFORMS, CONTENT_TYPES, STATUS_OPTIONS, CREATE_STATUS_OPTIONS, STATUS_STYLES, getTypeConfig, getTypeStyle, getTypeBadgeStyle, getTypeIcon, PlatformIcon, isRejectedContentStatus, isFailedContentStatus } from "@/lib/contentConstants";
-import { fetchAllVisibleContents as fetchContents, createContent, updateContent, deleteContentWithResult, submitForApproval, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import { fetchAllVisibleContents as fetchContents, createContent, updateContent, updateContentWithResult, deleteContentWithResult, submitForApproval, parseMultipleImageUrls, type ContentItem, type ContentType, type ContentStatus, type CreateContentPayload, type UpdateContentPayload } from "@/services/contentService";
+import ImageGalleryView from "@/components/content/ImageGalleryView";
 import TagPicker from "@/components/content/TagPicker";
 import { fetchBrands } from "@/services/brandService";
 import { apiFetch } from "@/lib/apiClient";
@@ -44,10 +46,11 @@ let toastId = 0;
 export default function ContentPage() {
   const router = useRouter();
   const featureGate = useFeatureGate();
+  const rbac = useRbac();
   const canReview = featureGate.can("reviewContent");
   const canPublish = featureGate.can("publishPost") || featureGate.isContentCreator;
   const [mineChoice, setMineChoice] = useState<boolean | null>(null);
-  const mine = mineChoice ?? featureGate.isContentCreator;
+  const mine = mineChoice ?? (rbac ? false : featureGate.isContentCreator);
   const canManageSchedules = featureGate.can("manageSchedules");
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -78,7 +81,8 @@ export default function ContentPage() {
   const [scheduledCount, setScheduledCount] = useState(0);
   const [quota, setQuota] = useState<{ promptUsage: number; promptQuotaLimit: number; postUsage: number; postQuotaLimit: number; textContentCount: number; imageContentCount: number; videoContentCount: number } | null>(null);
   const [brandList, setBrandList] = useState<{ id: string; name: string }[]>([]);
-  const createAllowed = useResourcePermissions(brandList.map(brand => ({ kind: Kind.Brand, resourceId: brand.id, permission: Permission.ContentCreate })));
+  const createChecks = rbac ? rbac.scopes.filter(s => s.teamId !== "00000000-0000-0000-0000-000000000000").map(s => ({ kind: Kind.Brand, resourceId: s.brandId, teamId: s.teamId, permission: Permission.ContentCreate })) : brandList.map(brand => ({ kind: Kind.Brand, resourceId: brand.id, permission: Permission.ContentCreate }));
+  const createAllowed = useResourcePermissions(createChecks);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const loadVersion = useRef(0);
@@ -291,7 +295,7 @@ export default function ContentPage() {
         router.push(`/content/${item.id}`);
         break;
       case "Edit":
-        setEditingItem(item);
+        router.push(`/content/${item.id}?edit=true`);
         break;
       case "delete":
         setDeletingItem(item);
@@ -317,7 +321,7 @@ export default function ContentPage() {
     }
   };
 
-  // Edit save
+  // Edit save (if modal is used)
   const [editingSaving, setEditingSaving] = useState(false);
   const submitContent = async (item: ContentItem) => {
     const result = await submitForApproval(item.id);
@@ -332,17 +336,19 @@ export default function ContentPage() {
   const handleEditSave = async (updated: ContentItem) => {
     setEditingSaving(true);
     try {
-      const success = await updateContent(updated.id, {
+      const result = await updateContentWithResult(updated.id, {
         title: updated.title,
         adType: updated.type === "TEXT" ? 0 : updated.type === "IMAGE" ? 1 : 2,
-        textContent: "",
+        textContent: updated.textContent ?? undefined,
+        richTextJson: updated.richTextJson ?? undefined,
+        imageUrls: updated.imageUrls ?? undefined,
       });
-      if (success) {
+      if (result.success) {
         setEditingItem(null);
         loadContent();
         addToast(`"${updated.title}" updated`, "check_circle");
       } else {
-        addToast("Failed to update content", "error");
+        addToast(result.error || "Failed to update content", "error");
       }
     } catch {
       addToast("Network error. Please check your connection", "error");
@@ -416,7 +422,7 @@ export default function ContentPage() {
               </button>
             </div>
             <div className="relative">
-              <button disabled={!brandList.some((_, index) => createAllowed(index))} ref={createBtnRef} onClick={() => {
+              <button disabled={!createChecks.some((_, index) => createAllowed(index))} ref={createBtnRef} onClick={() => {
                   if (!showCreateMenu && createBtnRef.current) {
                     const rect = createBtnRef.current.getBoundingClientRect();
                     setCreateMenuStyle({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
@@ -678,9 +684,20 @@ export default function ContentPage() {
                         </td>
                         <td className="px-5 py-3.5">
                           <button onClick={() => router.push(`/content/${item.id}`)} className="flex items-center gap-3 text-left">
-                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getTypeStyle(item.type)} flex items-center justify-center text-white shrink-0`}>
-                              <span className="material-symbols-outlined text-[18px]">{getTypeConfig(item.type).icon}</span>
-                            </div>
+                            {item.type === "IMAGE" && (item.imageUrls?.[0] || item.thumbnail || (item.imageUrl && !item.imageUrl.startsWith("["))) ? (
+                              <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-outline-variant/20 shrink-0 bg-surface-container">
+                                <img src={item.imageUrls?.[0] || (item.imageUrl && !item.imageUrl.startsWith("[") ? item.imageUrl : item.thumbnail)} alt={item.title} className="w-full h-full object-cover" />
+                                {((item.imageUrls?.length ?? 0) > 1 || parseMultipleImageUrls(item.imageUrl).length > 1) && (
+                                  <span className="absolute bottom-0 right-0 px-1 rounded-tl bg-black/70 text-[9px] text-white flex items-center justify-center font-bold">
+                                    {item.imageUrls?.length || parseMultipleImageUrls(item.imageUrl).length}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getTypeStyle(item.type)} flex items-center justify-center text-white shrink-0`}>
+                                <span className="material-symbols-outlined text-[18px]">{getTypeConfig(item.type).icon}</span>
+                              </div>
+                            )}
                             <span className="text-body-sm font-medium text-on-surface group-hover:text-primary transition-colors">{item.title}</span>
                           </button>
                         </td>
@@ -905,23 +922,30 @@ export default function ContentPage() {
             {/* Use dynamic aspect ratio based on platform */}
             {(() => {
               const isVertical = previewItem.platforms?.some(p => p.includes("tiktok") || p.includes("instagram")) || previewItem.tags?.some(t => t.toLowerCase().includes("tiktok") || t.toLowerCase().includes("instagram") || t.toLowerCase().includes("reels"));
-              const aspectClass = isVertical ? "aspect-[9/16] max-w-sm mx-auto" : "aspect-video";
+              const aspectClass = isVertical ? "aspect-[9/16] max-w-sm mx-auto" : "min-h-[220px]";
+              const pImages = (previewItem.imageUrls && previewItem.imageUrls.length > 0)
+                ? previewItem.imageUrls
+                : parseMultipleImageUrls(previewItem.imageUrl);
               
               return (
                 <div className={`relative ${aspectClass} bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden`}>
                   {previewItem.type === "VIDEO" && (previewItem.videoUrl || previewItem.thumbnail) ? (
                     <video src={previewItem.videoUrl || previewItem.thumbnail} className="w-full h-full object-cover" controls autoPlay muted loop playsInline />
-              ) : previewItem.type === "IMAGE" && (previewItem.imageUrl || previewItem.thumbnail) ? (
-                <img src={previewItem.imageUrl || previewItem.thumbnail} alt={previewItem.title} className="w-full h-full object-cover" />
-              ) : (
-                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(previewItem.type)} flex items-center justify-center text-white shadow-lg`}>
-                  <span className="material-symbols-outlined text-4xl">{getTypeConfig(previewItem.type).icon}</span>
+                  ) : previewItem.type === "IMAGE" && pImages.length > 0 ? (
+                    <div className="w-full h-full p-2">
+                      <ImageGalleryView images={pImages} title={previewItem.title} />
+                    </div>
+                  ) : previewItem.thumbnail ? (
+                    <img src={previewItem.thumbnail} alt={previewItem.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(previewItem.type)} flex items-center justify-center text-white shadow-lg`}>
+                      <span className="material-symbols-outlined text-4xl">{getTypeConfig(previewItem.type).icon}</span>
+                    </div>
+                  )}
+                  <span className={`absolute top-3 right-3 z-10 px-2 py-0.5 rounded-md text-label-xs font-semibold text-white shadow-sm ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
                 </div>
-              )}
-              <span className={`absolute top-3 right-3 z-10 px-2 py-0.5 rounded-md text-label-xs font-semibold text-white shadow-sm ${getTypeBadgeStyle(previewItem.type)}`}>{previewItem.type}</span>
-            </div>
-            );
-          })()}
+              );
+            })()}
             <div className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -1025,6 +1049,29 @@ function FilterChip({ label, color, onRemove }: { label: string; color?: string;
 function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: { item: ContentItem; onClose: () => void; onAction: (action: string, item: ContentItem) => void; canPublish: boolean; canManageSchedules: boolean }) {
   const allowed = useResourcePermissions([Permission.ContentEdit, Permission.ContentDelete].map(permission => ({ kind: Kind.Content, resourceId: item.id, permission })));
   const publishAllowed = usePublishPermission(item.id, item.brandId);
+
+  const getEditDisabledReason = () => {
+    if (!allowed.isReady) return "Đang kiểm tra quyền...";
+    if (allowed(0)) return undefined;
+    if (item.status === "Approved") return "Nội dung đã duyệt. Hãy vào trang chi tiết để thu hồi duyệt nếu muốn sửa.";
+    if (item.status === "Awaiting Approval") return "Nội dung đang chờ duyệt, không thể chỉnh sửa.";
+    if (item.status === "Published" || item.status === "Scheduled") return "Nội dung đã lên lịch hoặc xuất bản, không thể chỉnh sửa trực tiếp.";
+    return "Bạn không có quyền chỉnh sửa nội dung này.";
+  };
+
+  const getSubmitDisabledReason = () => {
+    if (!allowed.isReady) return "Đang kiểm tra quyền...";
+    if (allowed(0)) return undefined;
+    return "Bạn không có quyền gửi duyệt nội dung này.";
+  };
+
+  const getDeleteDisabledReason = () => {
+    if (!allowed.isReady) return "Đang kiểm tra quyền...";
+    if (allowed(1)) return undefined;
+    if (item.status === "Published" || item.status === "Scheduled") return "Không thể xóa nội dung đã lên lịch hoặc xuất bản.";
+    return "Bạn không có quyền xóa nội dung này.";
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
@@ -1037,7 +1084,12 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">open_in_new</span>
           View Details
         </button>
-        <button disabled={!allowed(0)} onClick={(e) => { e.stopPropagation(); onAction("Edit", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+        <button
+          disabled={!allowed(0)}
+          onClick={(e) => { e.stopPropagation(); onAction("Edit", item); }}
+          title={getEditDisabledReason()}
+          className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        >
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">edit</span>
           Edit
         </button>
@@ -1047,7 +1099,12 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
         </button>
         <div className="h-px bg-outline-variant/10 mx-3" />
         {(item.status === "Draft" || item.status === "Rejected") && (
-          <button disabled={!allowed(0)} onClick={(e) => { e.stopPropagation(); onAction("Submit for Approval", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+          <button
+            disabled={!allowed(0)}
+            onClick={(e) => { e.stopPropagation(); onAction("Submit for Approval", item); }}
+            title={getSubmitDisabledReason()}
+            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
             <span className="material-symbols-outlined text-[14px] text-amber-500 group-hover:text-amber-600">send</span>
             Submit for Approval
           </button>
@@ -1065,7 +1122,12 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
           </>
         )}
         <div className="h-px bg-outline-variant/10 mx-3" />
-        <button disabled={!allowed(1)} onClick={(e) => { e.stopPropagation(); onAction("delete", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-danger-red group">
+        <button
+          disabled={!allowed(1)}
+          onClick={(e) => { e.stopPropagation(); onAction("delete", item); }}
+          title={getDeleteDisabledReason()}
+          className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-danger-red group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        >
           <span className="material-symbols-outlined text-[14px]">delete</span>
           Delete
         </button>
@@ -1088,36 +1150,44 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction,
         {(() => {
           const isVertical = item.platforms?.some(p => p.includes("tiktok") || p.includes("instagram")) || item.tags?.some(t => t.toLowerCase().includes("tiktok") || t.toLowerCase().includes("instagram") || t.toLowerCase().includes("reels"));
           const aspectClass = isVertical ? "aspect-[9/16]" : "aspect-[4/3]";
+          const displayImg = item.imageUrls?.[0] || (item.imageUrl && !item.imageUrl.startsWith("[") ? item.imageUrl : null) || item.thumbnail;
+          const multiImageCount = (item.imageUrls && item.imageUrls.length > 0) ? item.imageUrls.length : (item.imageUrl ? parseMultipleImageUrls(item.imageUrl).length : 0);
           
           return (
             <div className={`relative ${aspectClass} bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden rounded-t-2xl`}>
               {item.type === "VIDEO" && (item.videoUrl || item.thumbnail) && !imgError ? (
                 <video 
-              src={item.videoUrl || item.thumbnail} 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-              muted loop playsInline 
-              onMouseEnter={(e) => e.currentTarget.play()} 
-              onMouseLeave={(e) => e.currentTarget.pause()} 
-              onError={() => setImgError(true)} 
-            />
-          ) : item.thumbnail && !imgError ? (
-            <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={() => setImgError(true)} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg`}>
-                <span className="material-symbols-outlined text-[28px]">{tc.icon}</span>
+                  src={item.videoUrl || item.thumbnail} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  muted loop playsInline 
+                  onMouseEnter={(e) => e.currentTarget.play()} 
+                  onMouseLeave={(e) => e.currentTarget.pause()} 
+                  onError={() => setImgError(true)} 
+                />
+              ) : displayImg && !imgError ? (
+                <img src={displayImg} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={() => setImgError(true)} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg`}>
+                    <span className="material-symbols-outlined text-[28px]">{tc.icon}</span>
+                  </div>
+                </div>
+              )}
+              <div className="absolute top-3 left-3">
+                <span className={`px-2 py-0.5 rounded-md text-label-xs font-semibold text-white ${typeBadgeColor} backdrop-blur-[2px] flex items-center gap-1`}>
+                  <span className="material-symbols-outlined text-label-xs">{tc.icon}</span>
+                  {item.type}
+                </span>
               </div>
+              {item.type === "IMAGE" && multiImageCount > 1 && (
+                <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm">
+                  <span className="material-symbols-outlined text-[13px]">photo_library</span>
+                  <span>{multiImageCount} ảnh</span>
+                </div>
+              )}
             </div>
-          )}
-          <div className="absolute top-3 left-3">
-            <span className={`px-2 py-0.5 rounded-md text-label-xs font-semibold text-white ${typeBadgeColor} backdrop-blur-[2px] flex items-center gap-1`}>
-              <span className="material-symbols-outlined text-label-xs">{tc.icon}</span>
-              {item.type}
-            </span>
-          </div>
-        </div>
-        );
-      })()}
+          );
+        })()}
         <div className="absolute top-3 right-3">
           <button onClick={(e) => { e.stopPropagation(); onToggleMenu(openMenuId === item.id ? null : item.id); }}
             className="w-7 h-7 rounded-lg bg-black/30 backdrop-blur-[2px] flex items-center justify-center text-white hover:bg-black/50 transition-colors active:scale-[0.95] opacity-0 group-hover:opacity-100">
@@ -1191,7 +1261,7 @@ function ContentFormModal({ item, onClose, onSave, saving }: { item?: ContentIte
     if (!form.brandName) return [];
     return [];
   }, [form.brandName]);
-  const isValid = form.title.trim().length > 0 && form.brandName && form.productName;
+  const isValid = form.title.trim().length > 0 && (isEdit || (!!form.brandName && !!form.productName));
 
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -18,6 +18,27 @@ public sealed class PermissionScopeMiddleware(RequestDelegate next)
         if(!membership.IsActive || !await db.Users.AsNoTracking().AnyAsync(u=>u.Id==actor && u.IsActive,http.RequestAborted))
         { http.Response.StatusCode=403; await http.Response.WriteAsJsonAsync(new {success=false,errorCode="ACCESS_DENIED"}); return; }
         db.PermissionWorkspaceId=workspace; db.PermissionActorId=actor;
+        if(access is RbacV2AccessAdapter)
+        {
+            var current=await new RbacV2AccessResolver(db).ContextAsync(actor,workspace,http.RequestAborted);
+            if(current is null) { http.Response.StatusCode=403; await http.Response.WriteAsJsonAsync(new {success=false,errorCode="ACTION_NOT_ALLOWED"});return; }
+            db.PermissionV2Enabled=true;
+            db.PermissionOwner=current.WorkspaceRole is "Owner" or "WorkspaceManager"; // query visibility only
+            db.PermissionManager=false; db.PermissionCreator=false;
+            db.PermissionBrandIds=current.Scopes.Select(s=>s.BrandId).Distinct().ToArray();
+            db.PermissionTeamIds=current.Teams.Select(s=>s.TeamId).ToArray();
+            db.PermissionWriteTeamIds=current.Scopes.Where(s=>s.Role is "Manager" or "ContentCreator").Select(s=>s.TeamId).Distinct().ToArray();
+            db.PermissionManagerTeamIds=current.Scopes.Where(s=>s.Role=="Manager").Select(s=>s.TeamId).Distinct().ToArray();
+            db.PermissionChannelIds=current.Scopes.SelectMany(s=>s.ChannelIds).Distinct().ToArray();
+            db.PermissionPlanIds=await db.AutomationPlans.IgnoreQueryFilters().Where(p=>p.WorkspaceId==workspace && !p.IsDeleted &&
+                !db.AutomationItems.IgnoreQueryFilters().Any(i=>i.AutomationPlanId==p.Id &&
+                    (!i.TeamId.HasValue || !i.BrandId.HasValue ||
+                     !(db.PermissionManagerTeamIds.Contains(i.TeamId.Value) || p.CreatedByUserId==actor && db.PermissionWriteTeamIds.Contains(i.TeamId.Value)) ||
+                     !db.TeamBrands.IgnoreQueryFilters().Any(tb=>tb.TeamId==i.TeamId && tb.BrandId==i.BrandId && tb.IsActive))))
+                .Select(p=>p.Id).ToArrayAsync(http.RequestAborted);
+        }
+        else
+        {
         db.PermissionOwner=membership.Role==WorkspaceMemberRoleEnum.Owner;
         db.PermissionManager=membership.Role==WorkspaceMemberRoleEnum.Manager;
         db.PermissionCreator=membership.Role==WorkspaceMemberRoleEnum.ContentCreator;
@@ -47,14 +68,22 @@ public sealed class PermissionScopeMiddleware(RequestDelegate next)
         db.PermissionPlanIds=await db.AutomationPlans.AsNoTracking().Where(p=>p.WorkspaceId==workspace &&
             !db.AutomationItems.Any(i=>i.AutomationPlanId==p.Id && i.BrandId.HasValue && !db.PermissionBrandIds.Contains(i.BrandId.Value)))
             .Select(p=>p.Id).ToArrayAsync(http.RequestAborted);
+        }
         db.PermissionScopeEnabled=true;
         db.BeforePermissionMutation=async (entity,state,ct)=>
         {
+            if(access is RbacV2AccessAdapter && entity is AISAM.Data.Model.Content changed && state!=EntityState.Added)
+            {
+                var original=await db.Contents.IgnoreQueryFilters().AsNoTracking().Where(c=>c.Id==changed.Id)
+                    .Select(c=>new {c.TeamId,c.BrandId,c.WorkspaceId,c.PrimaryCreatorId}).SingleOrDefaultAsync(ct);
+                if(original is null || original.TeamId!=changed.TeamId || original.BrandId!=changed.BrandId || original.WorkspaceId!=changed.WorkspaceId || original.PrimaryCreatorId!=changed.PrimaryCreatorId)
+                    throw new ResourceMutationDeniedException(); // transfers need a separate audited operation
+            }
             AccessRequest? request=entity switch
             {
-                AISAM.Data.Model.Content content when state==EntityState.Added => new(actor,workspace,AccessResourceKind.Brand,content.BrandId,ResourcePermission.ContentCreate),
+                AISAM.Data.Model.Content content when state==EntityState.Added => new(actor,workspace,AccessResourceKind.Brand,content.BrandId,ResourcePermission.ContentCreate,TeamId:content.TeamId),
                 AISAM.Data.Model.Content content => new(actor,workspace,AccessResourceKind.Content,content.Id,
-                    db.PermissionReviewContentId==content.Id?ResourcePermission.ApprovalReview:content.IsDeleted?ResourcePermission.ContentDelete:ResourcePermission.ContentEdit,IncludeDeleted:true),
+                    db.PermissionWithdrawContentId==content.Id?ResourcePermission.ApprovalWithdraw:db.PermissionReviewContentId==content.Id?ResourcePermission.ApprovalReview:content.IsDeleted?ResourcePermission.ContentDelete:ResourcePermission.ContentEdit,IncludeDeleted:true),
                 AISAM.Data.Model.ContentCalendar calendar => new(actor,workspace,AccessResourceKind.Content,calendar.ContentId,ResourcePermission.PostPublish,calendar.IntegrationId),
                 AISAM.Data.Model.Product product => new(actor,workspace,AccessResourceKind.Brand,product.BrandId,ResourcePermission.BrandManage),
                 AISAM.Data.Model.SocialIntegration channel when state==EntityState.Added => new(actor,workspace,AccessResourceKind.Brand,channel.BrandId,ResourcePermission.BrandManage),
@@ -66,6 +95,6 @@ public sealed class PermissionScopeMiddleware(RequestDelegate next)
                 throw new ResourceMutationDeniedException();
         };
         try { await next(http); }
-        finally { db.PermissionScopeEnabled=false; db.PermissionReviewContentId=null; db.PermissionReviewQueue=false; db.BeforePermissionMutation=null; }
+        finally { db.PermissionScopeEnabled=false; db.PermissionV2Enabled=false; db.PermissionReviewContentId=null; db.PermissionWithdrawContentId=null; db.PermissionReviewQueue=false; db.BeforePermissionMutation=null; }
     }
 }

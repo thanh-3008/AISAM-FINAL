@@ -8,6 +8,7 @@ part 'chat_request.g.dart';
 class ChatRequest with _$ChatRequest {
   const factory ChatRequest({
     String? brandId,
+    String? teamId,
     String? productId,
     required AdTypeEnum adType,
     required String message,

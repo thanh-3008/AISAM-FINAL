@@ -34,6 +34,7 @@ import '../features/settings/presentation/team_list_screen.dart';
 import '../features/settings/presentation/language_screen.dart';
 import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/billing/presentation/billing_screen.dart';
+import '../shared/widgets/rbac_screen_gate.dart';
 
 part 'router.g.dart';
 
@@ -164,7 +165,9 @@ GoRouter router(RouterRef ref) {
       ),
       GoRoute(
         path: '/settings/team',
-        builder: (context, state) => const TeamListScreen(),
+        builder: (context, state) => const RbacScreenGate(
+          unsupportedV2: 'Quản lý Team, thành viên và gán Brand theo RBAC hai tầng hiện được hỗ trợ trên website. Mobile chưa hỗ trợ các form quản trị này.',
+          child: TeamListScreen()),
       ),
       GoRoute(
         path: '/settings/team/members',
@@ -173,11 +176,13 @@ GoRouter router(RouterRef ref) {
           final teamId = extra?['teamId'] as String? ?? state.uri.queryParameters['teamId'];
           final teamName = extra?['teamName'] as String? ?? state.uri.queryParameters['teamName'];
           final isAll = extra?['isAll'] as bool? ?? (state.uri.queryParameters['all'] == 'true');
-          return TeamSettingsScreen(
+          return RbacScreenGate(
+            unsupportedV2: 'Mời người, đổi vai trò và gán quyền Team trên website để sử dụng đúng phân quyền hai tầng.',
+            child: TeamSettingsScreen(
             teamId: teamId,
             teamName: teamName,
             isAll: isAll,
-          );
+          ));
         },
       ),
       GoRoute(
@@ -259,11 +264,15 @@ GoRouter router(RouterRef ref) {
       ),
       GoRoute(
         path: '/chat/new',
-        builder: (context, state) => const ChatScreen(),
+        builder: (context, state) => const RbacScreenGate(
+          unsupportedV2: 'Hội thoại AI theo Team hiện hỗ trợ trên website. Trên Mobile, bạn có thể dùng chức năng tạo nội dung AI có chọn Team.',
+          child: ChatScreen()),
       ),
       GoRoute(
         path: '/chat/:id',
-        builder: (context, state) => ChatScreen(conversationId: state.pathParameters['id']!),
+        builder: (context, state) => RbacScreenGate(
+          unsupportedV2: 'Hãy mở hội thoại trên website để tiếp tục với đúng Team và Brand.',
+          child: ChatScreen(conversationId: state.pathParameters['id']!)),
       ),
     ],
   );

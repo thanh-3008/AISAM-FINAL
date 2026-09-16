@@ -1,3 +1,5 @@
+import '../../../core/network/rbac_context.dart';
+import '../../../shared/widgets/team_scope_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -41,6 +43,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
+  String? _teamId;
   late final TextEditingController _brandIdController;
 
   @override
@@ -98,11 +101,16 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
       AppSnackbar.showError(context,'Workspace changed. Reopen the editor.');
       return;
     }
+    final access = ref.read(rbacContextProvider).valueOrNull;
+    if (widget.contentId == null && (access == null || (access.isV2 && !access.scopes.any((s) => s.teamId == _teamId && s.brandId == _brandIdController.text.trim() && access.canCreate(s))))) {
+      AppSnackbar.showError(context, 'Chọn Team và chờ xác nhận quyền trước khi lưu.'); return;
+    }
     if (_formKey.currentState!.validate()) {
       if (widget.contentId == null) {
         ref.read(contentEditorControllerProvider.notifier).createContent(
           CreateContentRequest(
             brandId: _brandIdController.text.trim(),
+            teamId: _teamId,
             adType: AdTypeEnum.textOnly,
             title: _titleController.text.trim(),
             textContent: _contentController.text.trim(),
@@ -197,7 +205,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
                         onChanged: (val) {
                           if (val != null) {
                             setState(() {
-                              _brandIdController.text = val;
+                              _brandIdController.text = val; _teamId = null;
                             });
                           }
                         },
@@ -213,6 +221,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
+                if (widget.contentId == null) TeamScopeField(brandId: _brandIdController.text.trim(), value: _teamId, onChanged: (id) => setState(() => _teamId = id)),
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(labelText: 'Title (Optional)'),

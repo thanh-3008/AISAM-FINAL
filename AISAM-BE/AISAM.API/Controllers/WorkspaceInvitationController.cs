@@ -8,16 +8,18 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AISAM.API.Controllers;
 
+[ServiceFilter(typeof(AISAM.API.Filters.WorkspaceHrV2ConcurrencyFilter))]
 [ApiController]
 [Route("api/workspace-invitations")]
 [Authorize]
 public sealed class WorkspaceInvitationController : ControllerBase
 {
+    private readonly AISAM.Services.Access.IAccessControlService? _access;
     private readonly IWorkspaceInvitationService _workspaceInvitationService;
 
-    public WorkspaceInvitationController(IWorkspaceInvitationService workspaceInvitationService)
+    public WorkspaceInvitationController(IWorkspaceInvitationService workspaceInvitationService, AISAM.Services.Access.IAccessControlService? access=null)
     {
-        _workspaceInvitationService = workspaceInvitationService;
+        _workspaceInvitationService = workspaceInvitationService; _access=access;
     }
 
     [HttpPost]
@@ -36,6 +38,11 @@ public sealed class WorkspaceInvitationController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var workspaceId = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
+        if(_access is AISAM.Services.Access.RbacV2AccessAdapter &&
+            (!HttpContext.Items.TryGetValue(WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey,out var value) ||
+             value is not AISAM.Data.Model.WorkspaceMember member || !member.IsActive ||
+             member.WorkspaceRoleV2 is not (AISAM.Data.Enumeration.WorkspaceRoleV2.Owner or AISAM.Data.Enumeration.WorkspaceRoleV2.WorkspaceManager)))
+            return StatusCode(403,GenericResponse<IReadOnlyList<WorkspaceInvitationResponseDto>>.CreateError("Not allowed to view pending invitations.",System.Net.HttpStatusCode.Forbidden));
         var result = await _workspaceInvitationService.GetPendingByWorkspaceAsync(workspaceId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }

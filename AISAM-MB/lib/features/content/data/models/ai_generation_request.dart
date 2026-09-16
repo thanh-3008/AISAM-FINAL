@@ -8,6 +8,7 @@ part 'ai_generation_request.g.dart';
 class CreateDraftRequest with _$CreateDraftRequest {
   const factory CreateDraftRequest({
     required String brandId,
+    String? teamId,
     String? productId,
     required AdTypeEnum adType,
     String? title,

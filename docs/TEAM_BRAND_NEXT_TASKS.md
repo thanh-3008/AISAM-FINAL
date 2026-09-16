@@ -1,5 +1,7 @@
 # Việc tiếp theo — Team, Brand và quyền Manager
 
+> Cập nhật kế hoạch ngày 14/09/2026: xem [Kế hoạch RBAC hai tầng](../KE_HOACH_TASK_RBAC_HAI_TANG.md), lập theo tài liệu kiến trúc mới. Thiết kế mới phân biệt WorkspaceManager và TeamManager; các đề xuất Manager tạo Team/Brand bên dưới cần đối chiếu và thay thế khi chốt R00. Backlog này được giữ làm lịch sử, không phải xác nhận đã triển khai.
+
 Cập nhật 10/09/2026 theo trao đổi với người dùng. Đây là backlog cần thực hiện, chưa phải chức năng đã hoàn thành. Ưu tiên hoàn thiện BE/Web trước, sau đó đồng bộ mobile.
 
 ## 1. Nguyên tắc nghiệp vụ

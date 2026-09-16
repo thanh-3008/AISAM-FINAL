@@ -51,6 +51,7 @@ export async function installApiMock(page: Page) {
       const checks = request.postDataJSON() as { resourceId: string; permission: number }[];
       return fulfill(route, checks.map(check => [IDS.brand, IDS.content].includes(check.resourceId) && [0, 2, 3, 4, 7].includes(check.permission)));
     }
+    if (path === "/permissions/context") return fulfill(route, { revision: "e2e-legacy" });
     if (path === "/content" && method === "GET") return fulfill(route, { data: [{ id: IDS.content, brandId: IDS.brand, brandName: "E2E Brand", title: "E2E Launch Post", contentType: 0, status: 0, platforms: ["Facebook"], createdAt: new Date().toISOString() }], totalCount: 1, page: 1, pageSize: 12, totalPages: 1 });
     if (path === "/content" && method === "POST") return fulfill(route, { id: IDS.content, title: "E2E Created Content", contentType: 0, status: 0, platforms: ["Facebook"], createdAt: new Date().toISOString() });
     if (path.startsWith("/tags")) return fulfill(route, ["launch", "e2e"]);
@@ -91,8 +92,15 @@ export async function authenticate(page: Page, role: "User" | "Admin" = "User") 
   }, { token, role, ids: IDS });
 }
 
-type Fixtures = { userPage: Page; adminPage: Page };
+type Fixtures = { userPage: Page; adminPage: Page; localFonts: void };
 export const test = base.extend<Fixtures>({
+  // Font CDN availability is not part of these mocked business-flow tests.
+  // An external stylesheet can otherwise block load/hydration until network timeout.
+  localFonts: [async ({ page }, runTest) => {
+    await page.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\//,
+      route => route.fulfill({ status: 200, contentType: "text/css", body: "" }));
+    await runTest();
+  }, { auto: true }],
   userPage: async ({ page }, runTest) => { await installApiMock(page); await authenticate(page, "User"); await runTest(page); },
   adminPage: async ({ page }, runTest) => { await installApiMock(page); await authenticate(page, "Admin"); await runTest(page); },
 });

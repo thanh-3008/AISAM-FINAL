@@ -147,6 +147,7 @@ class ExceptionHandler {
               message = 'Không tìm thấy nội dung yêu cầu.';
               break;
             case 409:
+            case 428:
               message = 'Dữ liệu đã bị thay đổi hoặc xung đột. Vui lòng tải lại.';
               break;
             case 413:
@@ -186,7 +187,7 @@ class ExceptionHandler {
             code: code,
             originalError: error,
           );
-        } else if (statusCode == 409) {
+        } else if (statusCode == 409 || statusCode == 428) {
           return ConflictException(message, code: code, originalError: error);
         } else if (statusCode == 400 || statusCode == 422) {
           return ValidationException(message, code: code, originalError: error);

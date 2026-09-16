@@ -24,6 +24,7 @@ public partial class AisamContext
         m.Entity<PublishOperation>().Property(o=>o.Status).IsConcurrencyToken();
         m.Entity<PublishOperation>().HasQueryFilter(o=>!PermissionScopeEnabled||Contents.Any(c=>c.Id==o.ContentId));
         m.Entity<Content>().Property(c=>c.MediaVersion).IsConcurrencyToken();
+        m.Entity<ContentCalendar>().Property(c=>c.Status).IsConcurrencyToken();
         m.Entity<ContentMedia>().HasIndex(c=>new{c.ContentId,c.SortOrder}).IsUnique();
         m.Entity<ContentMedia>().HasIndex(c=>new{c.ContentId,c.AssetId}).IsUnique();
         m.Entity<ContentMedia>().HasOne(c=>c.Content).WithMany().HasForeignKey(c=>c.ContentId).OnDelete(DeleteBehavior.Restrict);
@@ -36,7 +37,8 @@ public partial class AisamContext
         m.Entity<PostMedia>().HasOne(s=>s.SnapshotMedia).WithMany().HasForeignKey(s=>s.SnapshotMediaId).OnDelete(DeleteBehavior.Restrict);
         m.Entity<PostMedia>().HasIndex(s=>new{s.PostId,s.SnapshotMediaId}).IsUnique();
         m.Entity<ContentMedia>().HasQueryFilter(s=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==s.ContentId));
-        m.Entity<PublishSnapshot>().HasQueryFilter(s=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==s.ContentId));
+        m.Entity<PublishSnapshot>().HasQueryFilter(s=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==s.ContentId &&
+            (!PermissionV2Enabled || PermissionOwner || c.TeamId.HasValue && PermissionWriteTeamIds.Contains(c.TeamId.Value) || c.ApprovedSnapshotId==s.Id)));
         m.Entity<SnapshotMedia>().HasQueryFilter(s=>!PermissionScopeEnabled || PublishSnapshots.Any(p=>p.Id==s.SnapshotId));
         m.Entity<PostMedia>().HasQueryFilter(s=>!PermissionScopeEnabled || Posts.Any(p=>p.Id==s.PostId));
         m.Entity<Asset>().HasIndex(a=>new{a.WorkspaceId,a.BrandId,a.CreatedAt});

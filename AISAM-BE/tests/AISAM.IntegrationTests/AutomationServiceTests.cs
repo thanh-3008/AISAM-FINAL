@@ -4,11 +4,34 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.Service;
+using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.IntegrationTests;
 
 public class AutomationServiceTests
 {
+    [Fact]
+    public async Task V2RequiresTeamAndPersistsItForGeneration()
+    {
+        await using var db=new AISAM.Repositories.AisamContext(new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AISAM.Repositories.AisamContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var w=new Workspace();var user=new User{Email="automation@example.test"};var brand=new Brand{WorkspaceId=w.Id,Name="Brand"};var team=new Team{WorkspaceId=w.Id};
+        db.AddRange(w,user,brand,team,new WorkspaceMember{WorkspaceId=w.Id,UserId=user.Id,WorkspaceRoleV2=WorkspaceRoleV2.Member},
+            new TeamMember{TeamId=team.Id,UserId=user.Id,Role=TeamRoleEnum.ContentCreator},new TeamBrand{TeamId=team.Id,BrandId=brand.Id});
+        await db.SaveChangesAsync();
+        var repo=new FakeAutomationRepository();
+        var service=new AutomationService(repo,new FakeBrandRepository(brand),new FakeProductRepository(),new FakeAutomationCreditService(),
+            new AISAM.Services.Access.RbacV2AccessAdapter(db,new AISAM.Services.Access.RbacV2AccessResolver(db)),db);
+        var row=new AutomationImportRowRequest{BrandId=brand.Id,Topic="Launch",Platforms=["facebook"],ContentType="Text",ScheduledAt=DateTime.UtcNow.AddDays(2)};
+        var request=new CreateAutomationPlanRequest{Name="Team plan",Rows=[row]};
+        Assert.Equal(403,(await service.CreateAsync(w.Id,brand.ProfileId,user.Id,request)).StatusCode);
+        row.TeamId=team.Id;
+        var result=await service.CreateAsync(w.Id,brand.ProfileId,user.Id,request);
+        Assert.True(result.Success);
+        Assert.Equal(team.Id,Assert.Single(repo.Plan!.Items).TeamId);
+        Assert.Equal(team.Id,Assert.Single(result.Data!.Items).TeamId);
+        Assert.Equal(403,(await service.SetAutoApproveAsync(w.Id,repo.Plan.Id,true)).StatusCode);
+    }
     [Fact]
     public async Task ImportCsvAsync_CombinesSimpleDateAndTimeColumns()
     {

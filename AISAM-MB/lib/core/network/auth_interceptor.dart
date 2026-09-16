@@ -11,6 +11,7 @@ class AuthInterceptor extends Interceptor {
   final void Function()? onSessionExpired;
 
   Completer<void>? _refreshCompleter;
+  final Map<String, String> _hrRevisions = {};
 
   AuthInterceptor(
     this._storage,
@@ -35,11 +36,16 @@ class AuthInterceptor extends Interceptor {
       );
       return;
     }
+    final revision = response.headers.value('X-HR-Revision');
+    if (revision != null) {
+      _hrRevisions['${_storage.cachedUserId}:${_storage.cachedWorkspaceId}'] = revision;
+    }
     handler.next(response);
   }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    options.headers['X-RBAC-Contract-Version'] = '2';
     options.extra.putIfAbsent('aisamActor', () => _storage.cachedUserId);
     final accessToken = _storage.cachedAccessToken;
     if (accessToken != null) {
@@ -59,6 +65,10 @@ class AuthInterceptor extends Interceptor {
       }
     }
 
+    if (options.method != 'GET' && RegExp(r'/(teams|workspace-members|workspace-invitations)(/|$)').hasMatch(options.path.toLowerCase()) && !options.path.toLowerCase().endsWith('/accept')) {
+      final revision = _hrRevisions['${_storage.cachedUserId}:${_storage.cachedWorkspaceId}'];
+      if (revision != null) options.headers.putIfAbsent('If-Match', () => revision);
+    }
     handler.next(options);
   }
 

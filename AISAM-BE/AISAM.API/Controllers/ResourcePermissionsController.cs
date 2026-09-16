@@ -13,7 +13,7 @@ namespace AISAM.API.Controllers;
 [ApiController, Authorize, Route("api/permissions")]
 public sealed class ResourcePermissionsController(IAccessControlService access, AisamContext? db = null) : ControllerBase
 {
-    public sealed record CheckItem(AccessResourceKind Kind, Guid ResourceId, ResourcePermission Permission, Guid? ChannelId = null);
+    public sealed record CheckItem(AccessResourceKind Kind, Guid ResourceId, ResourcePermission Permission, Guid? ChannelId = null, Guid? TeamId = null, Guid? MemberId = null);
 
     [HttpGet("context")]
     public async Task<IActionResult> Context(CancellationToken ct)
@@ -22,6 +22,11 @@ public sealed class ResourcePermissionsController(IAccessControlService access, 
         var workspace = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
         var actor = UserClaimsHelper.GetUserIdOrThrow(User);
         var member = (AISAM.Data.Model.WorkspaceMember)HttpContext.Items[WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey]!;
+        if(access is RbacV2AccessAdapter)
+        {
+            var current=await new RbacV2AccessResolver(db).ContextAsync(actor,workspace,ct);
+            return current is null ? StatusCode(403,new {success=false,errorCode="ACTION_NOT_ALLOWED"}) : Ok(new {success=true,data=current});
+        }
         var grants = await (from grant in db.TeamChannelAccesses.AsNoTracking()
             join assignment in db.TeamBrands.AsNoTracking() on grant.TeamBrandId equals assignment.Id
             where assignment.IsActive && db.PermissionTeamIds.Contains(assignment.TeamId)
@@ -47,7 +52,7 @@ public sealed class ResourcePermissionsController(IAccessControlService access, 
         var workspace = WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
         var results = new List<bool>(items.Length);
         foreach (var item in items)
-            results.Add((await access.CheckAsync(new(actor, workspace, item.Kind, item.ResourceId, item.Permission, item.ChannelId), ct)).Allowed);
+            results.Add((await access.CheckAsync(new(actor, workspace, item.Kind, item.ResourceId, item.Permission, item.ChannelId,item.MemberId,TeamId:item.TeamId), ct)).Allowed);
         return Ok(new { success = true, data = results });
     }
 }

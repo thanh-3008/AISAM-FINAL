@@ -6,6 +6,7 @@ import '../../../../core/errors/app_exception.dart';
 import '../../../../core/state/base_state.dart';
 import 'content_list_controller.dart';
 import '../../../workspace/presentation/providers/workspace_controller.dart';
+import '../../../../core/network/rbac_context.dart';
 
 part 'content_editor_controller.g.dart';
 
@@ -47,6 +48,7 @@ class ContentDetailController extends _$ContentDetailController {
   @override
   AsyncValue<ContentResponseModel> build(String id) {
     ref.watch(activeWorkspaceControllerProvider);
+    ref.watch(rbacContextProvider.select((context) => context.valueOrNull?.revision));
     _generation++;
     ref.onDispose(() => _generation++);
     _fetchDetail(id);

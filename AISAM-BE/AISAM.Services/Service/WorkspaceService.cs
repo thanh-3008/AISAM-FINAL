@@ -103,7 +103,8 @@ public sealed class WorkspaceService : IWorkspaceService
                 new WorkspaceMember
                 {
                     UserId = userId,
-                    Role = WorkspaceMemberRoleEnum.Owner
+                    Role = WorkspaceMemberRoleEnum.Owner,
+                    WorkspaceRoleV2 = WorkspaceRoleV2.Owner
                 }
             ]
         };

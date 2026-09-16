@@ -15,6 +15,7 @@ public sealed record AssignmentSnapshot(string Revision, IReadOnlyList<TeamBrand
 
 public sealed class AssignmentService(AisamContext db, IAccessControlService access)
 {
+    private bool V2=>access is RbacV2AccessAdapter;
     public async Task<AssignmentSnapshot> ReadAsync(Guid actor, Guid workspace, Guid brand, CancellationToken ct = default)
     {
         var decision=await access.CheckAsync(new(actor,workspace,AccessResourceKind.Brand,brand,ResourcePermission.BrandManage),ct);
@@ -24,6 +25,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
 
     private async Task<AssignmentSnapshot> VisibleSnapshot(Guid actor,Guid workspace,AssignmentSnapshot snapshot,CancellationToken ct)
     {
+        if(V2)return snapshot; // ReadAsync already requires v2 BrandManage
         if(await db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().AnyAsync(m=>m.WorkspaceId==workspace && m.UserId==actor && m.IsActive && m.Role==WorkspaceMemberRoleEnum.Owner,ct)) return snapshot;
         var ids=await (from m in db.TeamMembers.IgnoreQueryFilters().AsNoTracking()
             join t in db.Teams.IgnoreQueryFilters().AsNoTracking() on m.TeamId equals t.Id
@@ -40,7 +42,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
         var channels=await db.TeamChannelAccesses.AsNoTracking().Where(c=>ids.Contains(c.TeamBrandId)).OrderBy(c=>c.Id).ToListAsync(ct);
         // Full canonical state; no collision-prone timestamps or client revision counters.
         var state=string.Join(";",teams.Select(t=>$"{t.Id:N}:{t.TeamId:N}:{t.IsActive}:{t.AssignedAt.Ticks}")) + "|" +
-            string.Join(";",channels.Select(c=>$"{c.Id:N}:{c.TeamBrandId:N}:{c.IntegrationId:N}:{c.CanView}:{c.CanPublish}:{c.CanManage}"));
+            string.Join(";",channels.Select(c=>$"{c.Id:N}:{c.TeamBrandId:N}:{c.IntegrationId:N}:{c.CanView}:{c.CanPublish}:{c.CanManage}:{c.ScopeEnabledV2}"));
         return new(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state))),teams,channels);
     }
 
@@ -60,22 +62,23 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
     private async Task<AssignmentSnapshot> ChangeCoreAsync(AssignmentChange request, CancellationToken ct)
     {
         if(string.IsNullOrWhiteSpace(request.ExpectedRevision)) throw new ArgumentException("Expected revision is required.");
+        if(V2 && (request.CanView || request.CanPublish || request.CanManage))throw new ArgumentException("V2 grants scope only; legacy permission flags are not accepted.");
         if((request.CanPublish || request.CanManage) && !request.CanView) throw new ArgumentException("Publish/manage requires view.");
         // Serializable transaction includes authorization, read revision, mutation and audit.
-        await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
+        await using var tx=db.Database.IsRelational()?await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct):null;
         var current=await ReadAsync(request.ActorId,request.WorkspaceId,request.BrandId,ct);
         if(current.Revision!=request.ExpectedRevision) throw new AssignmentConflictException();
         var team=await db.Teams.AsNoTracking().SingleOrDefaultAsync(t=>t.Id==request.TeamId && t.WorkspaceId==request.WorkspaceId && !t.IsDeleted && t.Status==TeamStatusEnum.Active,ct);
         if(team is null) throw new AssignmentAccessException(AccessDecision.Hidden);
         var member=await db.WorkspaceMembers.AsNoTracking().SingleAsync(m=>m.UserId==request.ActorId && m.WorkspaceId==request.WorkspaceId && m.IsActive,ct);
-        if(member.Role!=WorkspaceMemberRoleEnum.Owner && !await db.TeamMembers.AsNoTracking().AnyAsync(m=>m.TeamId==team.Id && m.UserId==request.ActorId && m.IsActive,ct))
+        if(!V2 && member.Role!=WorkspaceMemberRoleEnum.Owner && !await db.TeamMembers.AsNoTracking().AnyAsync(m=>m.TeamId==team.Id && m.UserId==request.ActorId && m.IsActive,ct))
             throw new AssignmentAccessException(AccessDecision.Denied);
         var assignment=await db.TeamBrands.SingleOrDefaultAsync(t=>t.TeamId==team.Id && t.BrandId==request.BrandId,ct);
         if(request.IntegrationId is { } channelId)
         {
             var channel=await db.SocialIntegrations.AsNoTracking().SingleOrDefaultAsync(i=>i.Id==channelId && i.WorkspaceId==request.WorkspaceId && i.BrandId==request.BrandId && !i.IsDeleted,ct);
-            if(channel is null || assignment is null || !assignment.IsActive) throw new AssignmentAccessException(AccessDecision.Hidden);
-            if(member.Role!=WorkspaceMemberRoleEnum.Owner)
+            if(channel is null || assignment is null || !assignment.IsActive || V2 && request.Active && !channel.IsActive) throw new AssignmentAccessException(AccessDecision.Hidden);
+            if(!V2 && member.Role!=WorkspaceMemberRoleEnum.Owner)
             {
                 var manage=await access.CheckAsync(new(request.ActorId,request.WorkspaceId,AccessResourceKind.Channel,channelId,ResourcePermission.SocialManage),ct);
                 if(!manage.Allowed) throw new AssignmentAccessException(manage);
@@ -90,6 +93,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
             }
             var grant=await db.TeamChannelAccesses.SingleOrDefaultAsync(g=>g.TeamBrandId==assignment.Id && g.IntegrationId==channelId,ct);
             if(grant is null) { grant=new(){TeamBrandId=assignment.Id,IntegrationId=channelId}; db.Add(grant); }
+            if(V2) grant.ScopeEnabledV2=request.Active;
             grant.CanView=request.Active && request.CanView;
             grant.CanPublish=request.Active && request.CanPublish;
             grant.CanManage=request.Active && request.CanManage;
@@ -111,7 +115,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
             // Revocation also clears channel grants so reactivation cannot restore stale powers.
             if(!request.Active)
                 foreach(var g in await db.TeamChannelAccesses.Where(g=>g.TeamBrandId==assignment.Id).ToListAsync(ct))
-                    g.CanView=g.CanPublish=g.CanManage=false;
+                    { g.CanView=g.CanPublish=g.CanManage=false; g.ScopeEnabledV2=false; }
         }
         db.AuditLogs.Add(new AuditLog { ActorId=request.ActorId,WorkspaceId=request.WorkspaceId,TeamId=request.TeamId,
             ActionType=request.Active?"permission.grant":"permission.revoke",TargetTable=request.IntegrationId.HasValue?"social_integrations":"brands",
@@ -119,7 +123,7 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
             NewValues=System.Text.Json.JsonSerializer.Serialize(new {request.Active,request.CanView,request.CanPublish,request.CanManage}) });
         await db.SaveChangesAsync(ct);
         var result=await Snapshot(request.BrandId,ct);
-        await tx.CommitAsync(ct);
+        if(tx is not null)await tx.CommitAsync(ct);
         return await VisibleSnapshot(request.ActorId,request.WorkspaceId,result,ct);
     }
 }

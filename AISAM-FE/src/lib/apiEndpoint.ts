@@ -25,6 +25,13 @@ export function getApiEndpoints(): string[] {
   }
 
   const primary = cleanUrl(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5027/api");
+  // A local database is not a replica of production. Never silently move its
+  // session or mutations to a remote server after a local connection failure.
+  try {
+    const host = new URL(primary).hostname;
+    if (!isDdnsHost && ["localhost", "127.0.0.1", "[::1]"].includes(host) &&
+        process.env.NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER !== "true") return [primary];
+  } catch { /* Existing URL handling reports invalid configuration on request. */ }
   const fallback = cleanUrl(process.env.NEXT_PUBLIC_FALLBACK_API_URL || "https://aisam.ddns.net/api");
 
   // 2. If user is accessing via ddns.net, prioritize DDNS endpoint as primary

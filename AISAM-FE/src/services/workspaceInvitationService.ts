@@ -86,7 +86,14 @@ export async function acceptInvitation(token: string): Promise<{ success: boolea
   } catch (err: any) {
     const caughtMsg = err?.message || err || "Invitation not found or already processed";
     console.error("[acceptInvitation]", caughtMsg, err);
-    return { success: false, message: typeof caughtMsg === "string" ? caughtMsg : JSON.stringify(caughtMsg) };
+    const text = typeof caughtMsg === "string" ? caughtMsg : JSON.stringify(caughtMsg);
+    const exposesInfrastructure = /Npgsql|execution strategy|DbContext\.Database\.CreateExecutionStrategy/i.test(text);
+    return {
+      success: false,
+      message: exposesInfrastructure
+        ? "Không thể xử lý lời mời lúc này. Vui lòng thử lại sau."
+        : text,
+    };
   }
 }
 

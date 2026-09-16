@@ -78,7 +78,11 @@ class ContentDetailScreen extends ConsumerWidget {
         ],
       ),
       body: detailState.when(
-        data: (content) => _buildDetail(context, content, ref, permissions?[1] == true),
+        data: (content) => permissions == null
+            ? const Center(child: CircularProgressIndicator())
+            : permissions[0] != true
+                ? const Center(child: Text('Không có quyền xem nội dung này trong workspace hiện tại.'))
+                : _buildDetail(context, content, ref, permissions[1] == true),
         loading: () => const Center(child: AppLoadingIndicator()),
         error: (error, stack) => Center(child: Text('Error: $error')),
       ),

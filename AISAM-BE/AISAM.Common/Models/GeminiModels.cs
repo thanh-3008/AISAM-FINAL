@@ -18,6 +18,7 @@ public sealed class GeminiSettings
 
 public sealed class CreateDraftRequest
 {
+    public Guid? TeamId { get; set; }
     public Guid BrandId { get; set; }
     public Guid? ProductId { get; set; }
     public AdTypeEnum AdType { get; set; }
@@ -48,6 +49,7 @@ public sealed class AiGenerationResponse
 
 public sealed class ChatRequest
 {
+    public Guid? TeamId { get; set; }
     public Guid? BrandId { get; set; }
     public Guid? ProductId { get; set; }
     public AdTypeEnum AdType { get; set; }
