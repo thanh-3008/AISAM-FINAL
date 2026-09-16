@@ -18,6 +18,7 @@ export default function AcceptInvitationPage() {
   const [successWorkspace, setSuccessWorkspace] = useState<string>("");
   const [invitation, setInvitation] = useState<WorkspaceInvitation | null>(null);
   const [currentEmail, setCurrentEmail] = useState<string>("");
+  const [accountMismatch, setAccountMismatch] = useState(false);
 
   const [isMounted, setIsMounted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -67,6 +68,7 @@ export default function AcceptInvitationPage() {
     }
 
     setStatus("accepting");
+    setAccountMismatch(false);
     const result = await acceptInvitation(token);
 
     if (result.success) {
@@ -85,6 +87,7 @@ export default function AcceptInvitationPage() {
     } else {
       if (result.message?.includes("Invitation email does not match")) {
         setStatus("error");
+        setAccountMismatch(true);
         setErrorMessage(
           invitation?.email
             ? `This invitation is for ${invitation.email}. You are currently signed in${currentEmail ? ` as ${currentEmail}` : " with another account"}.`
@@ -142,9 +145,11 @@ export default function AcceptInvitationPage() {
                 </div>
                 <p className="text-body-md text-on-surface font-medium mb-2">{errorMessage}</p>
                 <p className="text-body-sm text-on-surface-variant mb-6">
-                  {invitation?.email ? "Sign in with the invited email to accept this workspace invitation." : "Please check the link or contact the workspace owner."}
+                  {accountMismatch
+                    ? "Sign in with the invited email to accept this workspace invitation."
+                    : "Please try again. If the problem continues, contact the workspace owner."}
                 </p>
-                {invitation?.email ? (
+                {accountMismatch && invitation?.email ? (
                   <button
                     onClick={handleSwitchAccount}
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
@@ -153,13 +158,23 @@ export default function AcceptInvitationPage() {
                     Sign in as {invitation.email}
                   </button>
                 ) : (
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">login</span>
-                    Go to Login
-                  </Link>
+                  <div className="flex justify-center gap-3">
+                    {invitation && (
+                      <button
+                        onClick={handleAccept}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-body-sm font-semibold hover:bg-primary/90 transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">refresh</span>
+                        Try again
+                      </button>
+                    )}
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 border border-outline-variant/30 text-on-surface rounded-xl text-body-sm font-semibold hover:bg-surface-container transition-colors"
+                    >
+                      Dashboard
+                    </Link>
+                  </div>
                 )}
               </div>
             )}

@@ -26,5 +26,17 @@ it("rejects unsupported roles and incomplete v2 context instead of using legacy 
   expect(() => parseRbacContext({ ...context, workspaceRole: "Manager" })).toThrow();
   expect(() => parseRbacContext({ ...context, contractVersion: undefined })).toThrow();
   expect(() => parseRbacContext({ ...context, scopes: [null] })).toThrow();
-  expect(parseRbacContext({ revision: "legacy" })).toBeNull();
+  expect(() => parseRbacContext({ revision: "legacy" })).toThrow(/RBAC v2/);
+});
+
+it("normalizes omitted nullable Team roles in an Owner context", () => {
+  const parsed = parseRbacContext({
+    ...context,
+    workspaceRole: "Owner",
+    teams: [{ teamId: "a" }],
+    scopes: [{ teamId: "00000000-0000-0000-0000-000000000000", brandId: "brand-a", channelIds: [] }],
+  });
+
+  expect(parsed.teams[0].role).toBeNull();
+  expect(parsed.scopes[0].role).toBeNull();
 });

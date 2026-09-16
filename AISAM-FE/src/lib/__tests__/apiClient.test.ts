@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach, Mock } from "vitest";
-import { apiClient } from "../apiClient";
+import { apiClient, setLoggingOut } from "../apiClient";
 import * as auth from "../auth";
 
 vi.mock("../auth", () => ({
@@ -23,6 +23,7 @@ vi.mock("@/stores/profile-store", () => ({
 
 describe("apiClient", () => {
   beforeEach(() => {
+    setLoggingOut(false);
     vi.clearAllMocks();
     global.fetch = vi.fn() as unknown as typeof fetch;
   });
@@ -85,6 +86,26 @@ describe("apiClient", () => {
     expect(auth.removeToken).not.toHaveBeenCalled();
     expect(auth.removeRefreshToken).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles immediately instead of hanging while logout is in progress", async () => {
+    setLoggingOut(true);
+    await expect(apiClient("/test")).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("does not turn a feature 403 into a workspace access-denied event", async () => {
+    (auth.getToken as Mock).mockReturnValue("valid-token");
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+    (global.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      url: "http://localhost:5027/api/workspace-dashboard/summary",
+      text: async () => JSON.stringify({ error: { errorCode: "WORKSPACE_FEATURE_NOT_AVAILABLE" } }),
+    });
+
+    await expect(apiClient("/workspace-dashboard/summary")).rejects.toMatchObject({ status: 403 });
+
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "aisam-access-denied" }));
   });
 
   it("retries with refresh token on 401 if not login/refresh endpoint", async () => {

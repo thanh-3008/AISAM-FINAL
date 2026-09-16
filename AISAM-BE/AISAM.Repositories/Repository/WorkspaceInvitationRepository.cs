@@ -99,6 +99,16 @@ public sealed class WorkspaceInvitationRepository : IWorkspaceInvitationReposito
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(
+            () => AcceptInTransactionAsync(invitation, userId, cancellationToken));
+    }
+
+    private async Task<WorkspaceMember> AcceptInTransactionAsync(
+        WorkspaceInvitation invitation,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction=_v2 && _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,cancellationToken) : null;
         if(_v2)

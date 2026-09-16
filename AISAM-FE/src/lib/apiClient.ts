@@ -18,7 +18,7 @@ export function resetRedirectState() {
   isLoggingOut = false;
 }
 
-function redirectToLoginAndHalt(): Promise<never> {
+function redirectToLoginAndHalt(): never {
   if (typeof window !== "undefined") {
     document.cookie = "aisam_role=; path=/; max-age=0";
     if (!isRedirectingToLogin && window.location.pathname !== "/login") {
@@ -26,7 +26,9 @@ function redirectToLoginAndHalt(): Promise<never> {
       window.location.href = "/login";
     }
   }
-  return new Promise(() => {});
+  // A never-settling Promise leaves route boundaries on their loading screen
+  // when navigation is delayed or Fast Refresh preserves module state.
+  throw new DOMException("Redirecting to login", "AbortError");
 }
 
 type ApiOptions = RequestInit & {
@@ -168,8 +170,12 @@ async function handleResponse(response: Response, config: RequestInit) {
     }
 
     const trimmed = errorMessage.trim();
-    if (response.status === 403 && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: { status: response.status, path: responsePath(response) } }));
+    const path = responsePath(response);
+    if (response.status === 403 && path === "/permissions/context" && typeof window !== "undefined") {
+      // Only the permission-context endpoint can declare that the whole
+      // workspace session is no longer accessible. Feature and action 403s are
+      // local decisions and must not remount the entire dashboard.
+      window.dispatchEvent(new CustomEvent("aisam-access-denied", { detail: { status: response.status, path } }));
     }
     const mappedError = ERROR_MAP[trimmed]
       ?? Object.entries(ERROR_MAP).find(([k]) => k.toLowerCase() === trimmed.toLowerCase())?.[1];
@@ -221,7 +227,7 @@ async function retryWithRefresh(endpoint: string, config: RequestInit): Promise<
 
 export async function apiClient(endpoint: string, options: ApiOptions = {}) {
   if (isLoggingOut) {
-    return new Promise(() => {});
+    throw new DOMException("Logout is in progress", "AbortError");
   }
   const isPublic = isPublicAuthEndpoint(endpoint);
   if (!isPublic) {
@@ -266,7 +272,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   if (isLoggingOut) {
-    return new Promise(() => {});
+    throw new DOMException("Logout is in progress", "AbortError");
   }
   if (typeof window !== "undefined" && !getToken() && !isPublicAuthEndpoint(endpoint)) {
     if (window.location.pathname !== "/login") {

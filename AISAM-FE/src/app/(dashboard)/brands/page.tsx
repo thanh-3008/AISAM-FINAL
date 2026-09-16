@@ -155,6 +155,7 @@ export default function BrandsPage() {
       const result = await apiFetch(`/brands/${brandToDelete.id}`, { method: "DELETE" });
       if (result?.success) {
         setBrands((prev) => prev.filter((b) => b.id !== brandToDelete.id));
+        window.dispatchEvent(new Event("aisam-permissions-changed"));
         addToast("Brand deleted successfully", "check");
       } else {
         addToast(result?.message || result?.error?.errorMessage || "Failed to delete brand", "error");
@@ -168,6 +169,7 @@ export default function BrandsPage() {
     try {
       const result = await apiFetch(`/brands/${brandId}/restore`, { method: "POST" });
       if (result?.success) {
+        window.dispatchEvent(new Event("aisam-permissions-changed"));
         fetchBrands();
         addToast("Brand restored successfully", "check");
       } else {
@@ -568,6 +570,7 @@ export default function BrandsPage() {
         onClose={() => setShowCreateModal(false)}
         onSuccess={(brand) => {
             setBrands((prev) => [brand, ...prev]);
+            window.dispatchEvent(new Event("aisam-permissions-changed"));
             addToast("Brand created successfully", "check");
           }}
         profileId={activeProfile?.id || ""}

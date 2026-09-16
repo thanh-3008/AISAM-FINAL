@@ -25,26 +25,35 @@ public sealed class WorkspaceHrV2ConcurrencyFilter(AisamContext db,IAccessContro
         var expected=http.Request.Headers["If-Match"].ToString().Trim('"');
         if(string.IsNullOrWhiteSpace(expected))
         {context.Result=Error(428,"ACCESS_REVISION_REQUIRED");return;}
-        await using var tx=db.Database.IsRelational()?await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct):null;
         try
         {
-            if(db.Database.IsRelational())
-                await db.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM workspaces WHERE id={workspace} FOR UPDATE",ct);
-            // Middleware may have tracked membership before the lock was acquired.
-            // HR service authorization must reload it inside this transaction.
-            db.ChangeTracker.Clear();
-            if(!string.Equals(expected,await Revision(workspace,ct),StringComparison.Ordinal))
-            {context.Result=Error(409,"ACCESS_REVISION_CONFLICT");return;}
-            var executed=await next();
-            if(executed.Exception is { } actionError && IsSerializationFailure(actionError))
+            // Npgsql's retrying execution strategy requires user-created transactions
+            // to execute as one retriable unit. Without this wrapper every HR write
+            // fails before the controller action is reached when retries are enabled.
+            var strategy=db.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
-                executed.ExceptionHandled=true;
-                executed.Result=context.Result=Error(409,"ACCESS_REVISION_CONFLICT");
-                return;
-            }
-            if(executed.Exception is not null || executed.Result is ObjectResult {StatusCode: >=400})return;
-            http.Response.Headers["X-HR-Revision"]=await Revision(workspace,ct);
-            if(tx is not null)await tx.CommitAsync(ct);
+                await using var tx=db.Database.IsRelational()
+                    ?await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct)
+                    :null;
+                if(db.Database.IsRelational())
+                    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM workspaces WHERE id={workspace} FOR UPDATE",ct);
+                // Middleware may have tracked membership before the lock was acquired.
+                // HR service authorization must reload it inside this transaction.
+                db.ChangeTracker.Clear();
+                if(!string.Equals(expected,await Revision(workspace,ct),StringComparison.Ordinal))
+                {context.Result=Error(409,"ACCESS_REVISION_CONFLICT");return;}
+                var executed=await next();
+                if(executed.Exception is { } actionError && IsSerializationFailure(actionError))
+                {
+                    executed.ExceptionHandled=true;
+                    executed.Result=context.Result=Error(409,"ACCESS_REVISION_CONFLICT");
+                    return;
+                }
+                if(executed.Exception is not null || executed.Result is ObjectResult {StatusCode: >=400})return;
+                http.Response.Headers["X-HR-Revision"]=await Revision(workspace,ct);
+                if(tx is not null)await tx.CommitAsync(ct);
+            });
         }
         catch(Exception ex) when(IsSerializationFailure(ex))
         {context.Result=Error(409,"ACCESS_REVISION_CONFLICT");}
