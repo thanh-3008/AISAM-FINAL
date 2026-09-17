@@ -18,6 +18,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -306,20 +308,83 @@ builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddSingleton<IOriginResolver, OriginResolver>();
 builder.Services.AddScoped<IOAuthStateStore>(sp => new SignedOAuthStateStore(jwtSecretKey, sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
-builder.Services.AddHttpClient<FacebookProvider>();
-builder.Services.AddHttpClient<InstagramProvider>();
-builder.Services.AddHttpClient<GoogleProvider>();
-builder.Services.AddHttpClient<TikTokProvider>();
+builder.Services.ConfigureHttpClientDefaults(http =>
+{
+    http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromSeconds(5),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+        EnableMultipleHttp2Connections = true,
+        ConnectCallback = async (context, cancellationToken) =>
+        {
+            var host = context.DnsEndPoint.Host;
+            var port = context.DnsEndPoint.Port;
+
+            if (IPAddress.TryParse(host, out var ipAddress))
+            {
+                var s = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                try
+                {
+                    await s.ConnectAsync(new IPEndPoint(ipAddress, port), cancellationToken);
+                    return new NetworkStream(s, ownsSocket: true);
+                }
+                catch
+                {
+                    s.Dispose();
+                    throw;
+                }
+            }
+
+            IPAddress[] addresses;
+            try
+            {
+                var entry = await Dns.GetHostEntryAsync(host, AddressFamily.InterNetwork, cancellationToken);
+                addresses = entry.AddressList;
+            }
+            catch
+            {
+                var entry = await Dns.GetHostEntryAsync(host, cancellationToken);
+                addresses = entry.AddressList;
+            }
+
+            if (addresses.Length == 0)
+            {
+                throw new SocketException((int)SocketError.HostNotFound);
+            }
+
+            var sorted = addresses
+                .OrderByDescending(a => a.AddressFamily == AddressFamily.InterNetwork)
+                .ToArray();
+
+            var socket = new Socket(sorted[0].AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(sorted, port, cancellationToken);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        }
+    });
+});
+
+builder.Services.AddHttpClient<FacebookProvider>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<InstagramProvider>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<GoogleProvider>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<TikTokProvider>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient<IPaymentService, PayOSPaymentService>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<FacebookProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<InstagramProvider>());
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<GoogleProvider>());
-builder.Services.AddHttpClient<GeminiTextClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<FallbackGeminiTextClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<FallbackGeminiTextClient2>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<FallbackGeminiTextClient3>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<FallbackGeminiTextClient4>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<OpenRouterTextClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<GeminiTextClient>(c => c.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddHttpClient<FallbackGeminiTextClient>(c => c.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddHttpClient<FallbackGeminiTextClient2>(c => c.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddHttpClient<FallbackGeminiTextClient3>(c => c.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddHttpClient<FallbackGeminiTextClient4>(c => c.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddHttpClient<OpenRouterTextClient>(c => c.Timeout = TimeSpan.FromSeconds(45));
 builder.Services.AddScoped<IGeminiTextClient, FallbackTextProvider>();
 builder.Services.AddScoped<IProviderService>(sp => sp.GetRequiredService<TikTokProvider>());
 builder.Services.AddScoped<IAIService, AIService>();
@@ -537,7 +602,7 @@ static string BuildDatabaseConnectionString(string connectionString)
 
     if (!configuredMaxPoolSize)
     {
-        var maxPoolSize = 5;
+        var maxPoolSize = 10;
         var envMaxPoolSize = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
         if (int.TryParse(envMaxPoolSize, out var parsedMaxPoolSize) && parsedMaxPoolSize > 0)
         {
@@ -549,12 +614,12 @@ static string BuildDatabaseConnectionString(string connectionString)
 
     if (!builder.ContainsKey("Timeout"))
     {
-        builder.Timeout = 10;
+        builder.Timeout = 30;
     }
 
     if (!builder.ContainsKey("Command Timeout"))
     {
-        builder.CommandTimeout = 30;
+        builder.CommandTimeout = 60;
     }
 
     return builder.ConnectionString;

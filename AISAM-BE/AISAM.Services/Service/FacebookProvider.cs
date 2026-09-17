@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -93,23 +94,70 @@ public sealed class FacebookProvider : IProviderService
         };
     }
 
+    private readonly ConcurrentDictionary<string, (DateTime Expiry, List<FacebookPageData> Pages)> _pagesCache = new();
+
+    private void CachePages(string accessToken, List<FacebookPageData> pages)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken) || pages == null || pages.Count == 0) return;
+
+        if (_pagesCache.Count > 50)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var kvp in _pagesCache)
+            {
+                if (kvp.Value.Expiry <= now)
+                {
+                    _pagesCache.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+        _pagesCache[accessToken] = (DateTime.UtcNow.AddMinutes(2), pages);
+    }
+
+    private bool TryGetCachedPages(string accessToken, out List<FacebookPageData> pages)
+    {
+        if (!string.IsNullOrWhiteSpace(accessToken) &&
+            _pagesCache.TryGetValue(accessToken, out var cached) &&
+            cached.Expiry > DateTime.UtcNow)
+        {
+            pages = cached.Pages;
+            return true;
+        }
+        pages = null!;
+        return false;
+    }
+
+    private void InvalidateCachedPages(string accessToken)
+    {
+        if (!string.IsNullOrWhiteSpace(accessToken))
+        {
+            _pagesCache.TryRemove(accessToken, out _);
+        }
+    }
+
     public async Task<IEnumerable<AvailableTargetDto>> GetTargetsAsync(string accessToken, CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
 
-        var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/me/accounts?fields=id,name,category,access_token";
-        var request = new HttpRequestMessage(HttpMethod.Get, url)
+        List<FacebookPageData> pages;
+        if (!TryGetCachedPages(accessToken, out pages!))
         {
-            Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
-        };
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException(GetErrorMessage(content));
+            var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/me/accounts?fields=id,name,category,access_token";
+            var request = new HttpRequestMessage(HttpMethod.Get, url)
+            {
+                Headers = { Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken) }
+            };
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(GetErrorMessage(content));
+            }
+
+            pages = Deserialize<FacebookPageResponse>(content).Data ?? new List<FacebookPageData>();
+            CachePages(accessToken, pages);
         }
 
-        var pages = Deserialize<FacebookPageResponse>(content).Data ?? new List<FacebookPageData>();
         return pages
             .Where(page => !string.IsNullOrWhiteSpace(page.Id))
             .Select(page => new AvailableTargetDto
@@ -127,6 +175,19 @@ public sealed class FacebookProvider : IProviderService
     {
         EnsureConfigured();
 
+        var pageIds = providerTargetIds.ToHashSet(StringComparer.Ordinal);
+        if (TryGetCachedPages(userAccessToken, out var cachedPages))
+        {
+            var cachedTokens = cachedPages
+                .Where(page => !string.IsNullOrWhiteSpace(page.Id) && !string.IsNullOrWhiteSpace(page.AccessToken) && pageIds.Contains(page.Id))
+                .ToDictionary(page => page.Id!, page => page.AccessToken!, StringComparer.Ordinal);
+
+            if (pageIds.All(id => cachedTokens.ContainsKey(id)))
+            {
+                return cachedTokens;
+            }
+        }
+
         var url = $"{_settings.BaseUrl}/{_settings.GraphApiVersion}/me/accounts?fields=id,access_token";
         var request = new HttpRequestMessage(HttpMethod.Get, url)
         {
@@ -139,7 +200,6 @@ public sealed class FacebookProvider : IProviderService
             throw new InvalidOperationException(GetErrorMessage(content));
         }
 
-        var pageIds = providerTargetIds.ToHashSet(StringComparer.Ordinal);
         var pages = Deserialize<FacebookPageResponse>(content).Data ?? new List<FacebookPageData>();
         return pages
             .Where(page => !string.IsNullOrWhiteSpace(page.Id) && !string.IsNullOrWhiteSpace(page.AccessToken) && pageIds.Contains(page.Id))
@@ -1434,6 +1494,7 @@ public sealed class FacebookProvider : IProviderService
 
     private async Task<string?> TryRefreshPageTokenAsync(SocialAccount account, SocialIntegration integration, CancellationToken cancellationToken)
     {
+        InvalidateCachedPages(account.UserAccessToken);
         var tokenMap = await GetTargetAccessTokensAsync(account.UserAccessToken, new[] { integration.ExternalId ?? string.Empty }, cancellationToken);
         return tokenMap.TryGetValue(integration.ExternalId ?? string.Empty, out var token) ? token : null;
     }

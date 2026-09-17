@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Services.IServices;
@@ -242,12 +243,52 @@ public sealed class InstagramProvider : IProviderService
 
     private static PublishResultDto Failed(string message) => new() { Success = false, ErrorMessage = message };
 
+    private readonly ConcurrentDictionary<string, (DateTime Expiry, List<PageData> Pages)> _pagesCache = new();
+
+    private void CachePages(string accessToken, List<PageData> pages)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken) || pages == null || pages.Count == 0) return;
+
+        if (_pagesCache.Count > 50)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var kvp in _pagesCache)
+            {
+                if (kvp.Value.Expiry <= now)
+                {
+                    _pagesCache.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+        _pagesCache[accessToken] = (DateTime.UtcNow.AddMinutes(2), pages);
+    }
+
+    private bool TryGetCachedPages(string accessToken, out List<PageData> pages)
+    {
+        if (!string.IsNullOrWhiteSpace(accessToken) &&
+            _pagesCache.TryGetValue(accessToken, out var cached) &&
+            cached.Expiry > DateTime.UtcNow)
+        {
+            pages = cached.Pages;
+            return true;
+        }
+        pages = null!;
+        return false;
+    }
+
     private async Task<List<PageData>> GetPagesAsync(string token, CancellationToken cancellationToken)
     {
+        if (TryGetCachedPages(token, out var cached))
+        {
+            return cached;
+        }
+
         const string fields = "id,name,category,access_token,instagram_business_account{id,username,profile_picture_url}";
         var result = await GetAsync<PageResponse>($"{_settings.BaseUrl}/{_settings.GraphApiVersion}/me/accounts" +
             $"?fields={Uri.EscapeDataString(fields)}&access_token={Uri.EscapeDataString(token)}", cancellationToken);
-        return result.Data ?? new List<PageData>();
+        var pages = result.Data ?? new List<PageData>();
+        CachePages(token, pages);
+        return pages;
     }
 
     private async Task<T> GetAsync<T>(string url, CancellationToken cancellationToken)

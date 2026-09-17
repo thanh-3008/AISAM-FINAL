@@ -8,7 +8,7 @@
  */
 
 const STORAGE_KEY = "aisam_active_api_url";
-const DEFAULT_CONNECT_TIMEOUT_MS = 8000;
+const DEFAULT_CONNECT_TIMEOUT_MS = 30000;
 
 function cleanUrl(url: string): string {
   return url.trim().replace(/\/+$/, "");
@@ -30,7 +30,7 @@ export function getApiEndpoints(): string[] {
   try {
     const host = new URL(primary).hostname;
     if (!isDdnsHost && ["localhost", "127.0.0.1", "[::1]"].includes(host) &&
-        process.env.NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER !== "true") return [primary];
+      process.env.NEXT_PUBLIC_ALLOW_LOCAL_API_FAILOVER !== "true") return [primary];
   } catch { /* Existing URL handling reports invalid configuration on request. */ }
   const fallback = cleanUrl(process.env.NEXT_PUBLIC_FALLBACK_API_URL || "https://aisam.ddns.net/api");
 
@@ -188,7 +188,14 @@ export async function fetchWithFailover(
   ];
 
   const maxAttempts = options?.disableFailover ? 1 : Math.min(candidates.length, 3);
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+  let timeoutMs = options?.timeoutMs;
+  if (!timeoutMs) {
+    if (/(^|\/)(ai|content\/(generate|media)|analytics\/insights|social(-auth|\/))/i.test(pathOrUrl)) {
+      timeoutMs = 60000;
+    } else {
+      timeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
+    }
+  }
 
   let lastError: unknown = null;
   let lastResponse: Response | null = null;
