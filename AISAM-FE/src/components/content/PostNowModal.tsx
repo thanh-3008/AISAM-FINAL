@@ -26,6 +26,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
   const [results, setResults] = useState<PublishOperation[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [missingAttempt, setMissingAttempt] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   const scope = `${getUserIdFromToken()}:${getStoredActiveWorkspace()?.id}:${contentId}`;
@@ -38,6 +39,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
     setResults([]);
     setSelected([]);
     setError("");
+    setMissingAttempt(false);
     previewPublish(contentId)
       .then(p => {
         if (active) setPreview(p);
@@ -74,6 +76,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
       try {
         const rows = await readPublish(contentId, attempt.key);
         if (active && rows.length) {
+          setMissingAttempt(false);
           setResults([...(attempt.previous ?? []), ...rows]);
           if (rows.every(r => ["Published", "Failed", "NeedsAttention", "Cancelled"].includes(r.status))) {
             clearInterval(timer);
@@ -98,8 +101,24 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
       const rows = await readPublish(contentId, attempt.key);
       setResults([...(attempt.previous ?? []), ...rows]);
       if (!rows.length) {
-        setError("Chưa có kết quả được xác nhận. Không tạo lượt đăng mới; thử kiểm tra lại.");
+        setMissingAttempt(true);
+        setError("Máy chủ chưa ghi nhận yêu cầu đăng này. Bạn có thể tiếp tục an toàn bằng chính mã yêu cầu cũ.");
       }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resumeMissingAttempt() {
+    if (!attempt || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const rows = await startPublish(contentId, attempt.version, attempt.ids, attempt.key);
+      setResults([...(attempt.previous ?? []), ...rows]);
+      setMissingAttempt(false);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -125,9 +144,11 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
     setAttempt(request);
     setBusy(true);
     setError("");
+    setMissingAttempt(false);
     try {
       setResults([...request.previous, ...await startPublish(contentId, request.version, request.ids, request.key)]);
     } catch (e) {
+      if ((e as Error & { status?: number }).status === 403) setMissingAttempt(true);
       setError(`${(e as Error).message}. Hãy kiểm tra kết quả; không đăng lại tự động.`);
     } finally {
       setBusy(false);
@@ -382,7 +403,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {attempt && (
+            {attempt && (
             <p className="text-xs text-on-surface-variant bg-surface-container/60 p-3 rounded-xl border border-surface-container">
               Kết quả từng kênh được lưu riêng. Nếu timeout hoặc NeedsAttention, cần đối soát trước khi tạo yêu cầu mới.
             </p>
@@ -418,6 +439,17 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 className="px-5 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary-hover shadow-xs transition-all disabled:opacity-50"
               >
                 Kiểm tra kết quả
+              </button>
+            )}
+
+            {attempt && missingAttempt && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={resumeMissingAttempt}
+                className="px-4 py-2 text-sm font-semibold bg-amber-600 text-white rounded-xl hover:bg-amber-700 shadow-xs transition-all disabled:opacity-50"
+              >
+                Tiếp tục yêu cầu đăng
               </button>
             )}
 

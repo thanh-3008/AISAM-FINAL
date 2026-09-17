@@ -27,6 +27,7 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
             context.Result=new ObjectResult(new {success=false,errorCode="ACCESS_DENIED_CHANNEL"}){StatusCode=403}; return;
         }
         var ids=new Dictionary<string,Guid>(StringComparer.OrdinalIgnoreCase);
+        var integrationIds=new List<Guid>();
         bool duplicateMismatch=false;
         void AddId(string key,Guid value)
         {
@@ -37,8 +38,14 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         {
             if(pair.Value is Guid id) AddId(pair.Key,id);
             else if(pair.Value is not null && pair.Value is not string)
-                foreach(var property in pair.Value.GetType().GetProperties().Where(p=>p.GetIndexParameters().Length==0 && (p.PropertyType==typeof(Guid) || p.PropertyType==typeof(Guid?))))
-                    if(property.GetValue(pair.Value) is Guid nested) AddId(property.Name,nested);
+                foreach(var property in pair.Value.GetType().GetProperties().Where(p=>p.GetIndexParameters().Length==0))
+                {
+                    var value=property.GetValue(pair.Value);
+                    if((property.PropertyType==typeof(Guid) || property.PropertyType==typeof(Guid?)) && value is Guid nested)
+                        AddId(property.Name,nested);
+                    else if(property.Name.Equals("IntegrationIds",StringComparison.OrdinalIgnoreCase) && value is IEnumerable<Guid> nestedIds)
+                        integrationIds.AddRange(nestedIds);
+                }
         }
         if(duplicateMismatch) { context.Result=new BadRequestObjectResult(new {success=false,errorCode="RESOURCE_ID_MISMATCH"}); return; }
         async Task<bool> Check(AccessResourceKind kind,Guid id,ResourcePermission permission,Guid? channel=null)
@@ -87,11 +94,20 @@ public sealed class ResourcePermissionFilter(IAccessControlService access,AisamC
         if(ids.TryGetValue("contentId",out var content))
         {
             var review=action is "Approve" or "Reject";
-            var publish=action.Contains("Publish",StringComparison.OrdinalIgnoreCase) || controller=="ContentSchedules" && !read;
+            var publishOperationCreate=controller=="PublishOperations" && action=="Create" && !read;
+            var publish=publishOperationCreate || action.Contains("Publish",StringComparison.OrdinalIgnoreCase) || controller=="ContentSchedules" && !read;
             ids.TryGetValue("integrationId",out var integration);
             var permission=action=="Withdraw"?ResourcePermission.ApprovalWithdraw:review?ResourcePermission.ApprovalReview:publish?ResourcePermission.PostPublish:
                 read || action=="Clone"?ResourcePermission.ContentView:HttpMethods.IsDelete(method)?ResourcePermission.ContentDelete:ResourcePermission.ContentEdit;
-            if(!await Check(AccessResourceKind.Content,content,permission,publish?integration:null)) return;
+            if(publishOperationCreate)
+            {
+                // The durable publishing endpoint carries several channel IDs in its body.
+                // Validate each destination as PostPublish; treating Create as ContentEdit
+                // incorrectly rejects approved content before the publish service can run.
+                foreach(var channelId in integrationIds.Distinct())
+                    if(!await Check(AccessResourceKind.Content,content,ResourcePermission.PostPublish,channelId)) return;
+            }
+            else if(!await Check(AccessResourceKind.Content,content,permission,publish?integration:null)) return;
             if(review) db.PermissionReviewContentId=content;
             if(action=="Withdraw") db.PermissionWithdrawContentId=content;
         }
