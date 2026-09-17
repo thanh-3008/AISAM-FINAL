@@ -51,11 +51,11 @@ public partial class AisamContext
         m.Entity<SocialIntegration>().HasQueryFilter(i=>!PermissionScopeEnabled || i.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionBrandIds.Contains(i.BrandId)) &&
             (PermissionOwner || PermissionChannelIds.Contains(i.Id)));
         m.Entity<SocialAccount>().HasQueryFilter(a=>!PermissionScopeEnabled || a.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || SocialIntegrations.Any(i=>i.SocialAccountId==a.Id)));
-        m.Entity<Post>().HasQueryFilter(p=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==p.ContentId && c.WorkspaceId==PermissionWorkspaceId &&
-            (PermissionV2Enabled ? PermissionOwner || c.TeamId.HasValue && TeamBrands.Any(tb=>tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive &&
-                TeamChannelAccesses.Any(g=>g.TeamBrandId==tb.Id && g.IntegrationId==p.IntegrationId && g.ScopeEnabledV2)) : c.PrimaryCreatorId==PermissionActorId ||
-             SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.BrandId==c.BrandId && i.WorkspaceId==PermissionWorkspaceId &&
-                 (PermissionOwner || PermissionChannelIds.Contains(i.Id))))));
+        m.Entity<Post>().HasQueryFilter(p=>!PermissionScopeEnabled ||
+            (PermissionV2Enabled ? Contents.Any(c=>c.Id==p.ContentId) :
+                Contents.Any(c=>c.Id==p.ContentId && c.WorkspaceId==PermissionWorkspaceId &&
+                    (c.PrimaryCreatorId==PermissionActorId || SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.BrandId==c.BrandId &&
+                        i.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionChannelIds.Contains(i.Id)))))));
         m.Entity<ContentCalendar>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && Contents.Any(x=>x.Id==c.ContentId));
         m.Entity<Approval>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId &&
             (!PermissionV2Enabled || PermissionOwner || c.TeamId.HasValue && PermissionWriteTeamIds.Contains(c.TeamId.Value) ||

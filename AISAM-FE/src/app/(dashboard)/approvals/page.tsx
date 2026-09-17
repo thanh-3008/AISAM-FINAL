@@ -396,12 +396,14 @@ export default function ApprovalsPage() {
 
   const canPublish = featureGate.can("publishPost");
   const canManageSchedules = featureGate.can("manageSchedules");
-  const isOwnerOrManager = !rbac && !!(
-    activeWorkspace?.isOwner ||
-    activeWorkspace?.memberRole === "Owner" ||
-    activeWorkspace?.memberRole === "Manager" ||
-    featureGate.can("reviewContent")
-  );
+  const isOwnerOrManager = rbac
+    ? rbac.workspaceRole === "Owner" || rbac.workspaceRole === "WorkspaceManager"
+    : !!(
+        activeWorkspace?.isOwner ||
+        activeWorkspace?.memberRole === "Owner" ||
+        activeWorkspace?.memberRole === "Manager" ||
+        featureGate.can("reviewContent")
+      );
   const [items, setItems] = useState<ApprovalListItem[]>([]);
   const contentItemsForReview = useMemo(
     () => items.filter((item) => item.approvalSource === "content" && !item.id.startsWith("schedule-")),

@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using AISAM.Common.Models;
 
 namespace AISAM.Services.Service;
@@ -32,6 +33,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
     {
         _logger.LogInformation("[VideoGenerationBackgroundService] STARTED.");
 
+        var consecutiveDatabaseFailures = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -50,6 +52,7 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
                 var pendingJobs = await dbContext.VideoGenerationJobs
                     .Where(j => (j.Status == AiStatusEnum.Processing || j.Status == AiStatusEnum.Pending) && !string.IsNullOrEmpty(j.ExternalJobId))
                     .ToListAsync(stoppingToken);
+                consecutiveDatabaseFailures = 0;
 
                 if (pendingJobs.Count > 0)
                 {
@@ -152,6 +155,26 @@ public sealed class VideoGenerationBackgroundService : BackgroundService
             catch (OperationCanceledException)
             {
                 break;
+            }
+            catch (NpgsqlException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (NpgsqlException ex)
+            {
+                consecutiveDatabaseFailures++;
+                var delaySeconds = Math.Min(30 * (1 << Math.Min(consecutiveDatabaseFailures - 1, 3)), 300);
+                _logger.LogWarning(ex,
+                    "[VideoGenerationBackgroundService] Database connection failed (attempt {Attempt}); retrying in {DelaySeconds}s.",
+                    consecutiveDatabaseFailures, delaySeconds);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
             catch (Exception ex)
             {

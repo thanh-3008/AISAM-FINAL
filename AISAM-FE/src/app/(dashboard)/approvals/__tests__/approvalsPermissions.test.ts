@@ -44,6 +44,17 @@ describe("Approvals Permission Filtering and Role Fallback", () => {
     expect(creatorReview("11111111-1111-1111-1111-111111111111")).toBe(false);
   });
 
+  it.each(["Owner", "WorkspaceManager"])("treats RBAC v2 %s as a workspace reviewer", (workspaceRole) => {
+    const isOwnerOrManager = workspaceRole === "Owner" || workspaceRole === "WorkspaceManager";
+    expect(isOwnerOrManager).toBe(true);
+  });
+
+  it("does not treat an RBAC v2 Member as a workspace reviewer", () => {
+    const workspaceRole: string = "Member";
+    const isOwnerOrManager = workspaceRole === "Owner" || workspaceRole === "WorkspaceManager";
+    expect(isOwnerOrManager).toBe(false);
+  });
+
   it("maps index correctly through filtered content items for delegated permissions", () => {
     const contentItemsForReview = [
       { id: "content-A" },

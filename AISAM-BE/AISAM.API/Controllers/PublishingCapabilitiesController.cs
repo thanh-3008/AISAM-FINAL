@@ -21,7 +21,10 @@ public sealed class PublishingCapabilitiesController(AisamContext db,IAccessCont
         var media=snapshot?.Media.ToList() ?? await db.ContentMedia.AsNoTracking().Where(m=>m.ContentId==contentId)
             .OrderBy(m=>m.SortOrder).Select(m=>new AISAM.Data.Model.SnapshotMedia {Url=m.Asset.StoragePath,MimeType=m.Asset.MimeType,SizeBytes=m.Asset.SizeBytes,DurationSeconds=m.Asset.DurationSeconds,SortOrder=m.SortOrder,IsCover=m.IsCover}).ToListAsync(ct);
         var frozen=snapshot is null?null:System.Text.Json.JsonSerializer.Deserialize<AISAM.Data.Model.Content>(snapshot.Payload);
-        var captions=frozen?.FormattedCaptions ?? AISAM.Data.RichTextDocument.FormatCaptions(frozen?.TextContent ?? content.TextContent);
+        var captions=frozen?.FormattedCaptions ?? AISAM.Data.RichTextDocument.FormatCaptions(
+            frozen?.TextContent ?? content.TextContent,
+            frozen?.RichTextJson ?? content.RichTextJson,
+            frozen?.RichTextVersion ?? content.RichTextVersion);
         var integrations=await db.SocialIntegrations.IgnoreQueryFilters().AsNoTracking().Include(i=>i.SocialAccount)
             .Where(i=>i.WorkspaceId==workspace && i.BrandId==content.BrandId && !i.IsDeleted).ToListAsync(ct);
         var destinations=new List<object>();

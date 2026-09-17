@@ -18,6 +18,7 @@ import { deriveTitleFromCaption } from "@/lib/generatedPostTitle";
 import { parseMediaMarkers, replaceVideoJobMarker, restoreConversationHistory, type ChatMessage, type Variation } from "@/lib/aiGenerateHistory";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import RichTextPreview from "@/components/content/RichTextPreview";
+import { getUserIdFromToken } from "@/lib/auth";
 
 type GenerationMode = "exact_product_reference" | "normal_generation";
 type ImageSourceMode = "original_product_images" | "ai_exact_product_reference" | "ai_normal_generation";
@@ -159,12 +160,17 @@ function loadChatSession(key: string): string | null {
   }
 }
 
+function removeChatSession(key: string) {
+  localStorage.removeItem(key);
+}
+
 export default function AIGeneratePage() {
   const rbac = useRbac();
   const [teamId, setTeamId] = useState("");
   const router = useRouter();
   const { addToast } = useToast();
   const { activeWorkspace } = useWorkspaces();
+  const currentUserId = getUserIdFromToken();
   const featureGate = useFeatureGate();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
@@ -252,8 +258,8 @@ export default function AIGeneratePage() {
   const setUseOriginalProductImages = (checked: boolean) => {
     setImageSourceMode(checked ? "original_product_images" : "ai_exact_product_reference");
   };
-  const conversationStorageKey = activeWorkspace?.id && brandId
-    ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}${rbac ? `-team-${teamId}` : ""}`
+  const conversationStorageKey = currentUserId && activeWorkspace?.id && brandId
+    ? `ai-conversation-${currentUserId}-${activeWorkspace.id}-${brandId}-${productId || "no-product"}${rbac ? `-team-${teamId}` : ""}`
     : null;
 
   useEffect(() => {
@@ -280,12 +286,15 @@ export default function AIGeneratePage() {
     let cancelled = false;
     const savedId = loadChatSession(conversationStorageKey);
     if (!savedId) return;
-    setConversationId(savedId);
     getConversationMessages(savedId).then(msgs => {
       if (!cancelled && msgs) {
+        setConversationId(savedId);
         const restored = restoreConversationHistory(msgs);
         setMessages(restored.chatMessages);
         setVariations(restored.variations);
+      } else if (!cancelled) {
+        removeChatSession(conversationStorageKey);
+        setConversationId(null);
       }
     });
     return () => { cancelled = true; };
@@ -476,7 +485,11 @@ export default function AIGeneratePage() {
     );
     if (aiReply?.errorMessage) {
       finishGeneration();
-      addToast(aiReply.errorMessage);
+      if (conversationStorageKey && conversationId && /không tồn tại|quyền truy cập|not found/i.test(aiReply.errorMessage)) {
+        removeChatSession(conversationStorageKey);
+        setConversationId(null);
+      }
+      addToast(aiReply.errorMessage, "error");
       return;
     }
     if (aiReply) {
