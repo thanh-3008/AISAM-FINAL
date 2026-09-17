@@ -12,7 +12,42 @@ import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 export default function BrandAccessPage() {
   const rbac = useRbac();
   const { id } = useParams<{ id: string }>();
-  if (rbac) return <main className="mx-auto max-w-5xl space-y-6 p-6"><Link href={`/brands/${id}`} className="text-blue-700 underline">Quay lại Brand</Link><RbacBrandAccess brandId={id} /></main>;
+  if (rbac) {
+    return (
+      <main className="mx-auto w-full max-w-[1440px] space-y-7 p-5 md:p-8 xl:p-10">
+        <Link
+          href={`/brands/${id}`}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-blue-700"
+        >
+          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          Quay lại Brand
+        </Link>
+
+        <header className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/80 to-indigo-50 p-6 shadow-sm md:p-8">
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-200/30 blur-3xl" />
+          <div className="relative flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
+              <span className="material-symbols-outlined text-3xl">shield_person</span>
+            </div>
+            <div>
+              <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+                RBAC hai tầng
+              </span>
+              <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
+                Quản lý Team và quyền kênh
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
+                Kiểm soát Team nào được sử dụng Brand và các kênh mạng xã hội mà Team có thể truy cập. Vai trò
+                trong Team tiếp tục quyết định quyền xem, tạo nội dung và xuất bản.
+              </p>
+            </div>
+          </div>
+        </header>
+
+        <RbacBrandAccess brandId={id} />
+      </main>
+    );
+  }
   return <LegacyBrandAccessPage />;
 }
 function LegacyBrandAccessPage() {

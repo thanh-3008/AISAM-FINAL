@@ -59,6 +59,28 @@ public class ResourcePermissionFilterTests
     }
 
     [Fact]
+    public async Task PublishOperationsCreateChecksPostPublishForDestination()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.PermissionScopeEnabled=true;db.PermissionWorkspaceId=Guid.NewGuid();
+        var actor=Guid.NewGuid();
+        var http=new DefaultHttpContext {User=new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier,actor.ToString())],"test"))};
+        http.Request.Method="POST";
+        var descriptor=new ActionDescriptor {RouteValues=new Dictionary<string,string?> {{"controller","PublishOperations"},{"action","Create"}}};
+        var actionContext=new ActionContext(http,new RouteData(),descriptor,new ModelStateDictionary());
+        var contentId=Guid.NewGuid();var integrationId=Guid.NewGuid();
+        var body=new {ExpectedVersion=Guid.NewGuid(),IntegrationIds=new List<Guid>{integrationId},IdempotencyKey="request"};
+        var executing=new ActionExecutingContext(actionContext,[],new Dictionary<string,object?> {{"contentId",contentId},{"request",body}},new object());
+        var access=new Access();var filter=new ResourcePermissionFilter(access,db);
+        bool ran=false;
+        await filter.OnActionExecutionAsync(executing,()=>{ran=true;return Task.FromResult(new ActionExecutedContext(actionContext,[],new object()));});
+        Assert.False(ran);
+        Assert.Equal(ResourcePermission.PostPublish,access.Request!.Permission);
+        Assert.Equal(contentId,access.Request.ResourceId);
+        Assert.Equal(integrationId,access.Request.ChannelId);
+    }
+
+    [Fact]
     public async Task SocialAuth_CreatorOrViewer_BlockedByFilter()
     {
         await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
