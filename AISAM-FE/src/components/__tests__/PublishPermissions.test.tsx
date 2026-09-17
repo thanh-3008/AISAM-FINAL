@@ -37,6 +37,20 @@ it("persists an attempt before timeout and reopens without submitting again", as
   await waitFor(() => expect(mocks.read).toHaveBeenCalled());
   expect(mocks.start).toHaveBeenCalledTimes(1);
 });
+it("resumes a server-missing attempt with the same idempotency key", async () => {
+  localStorage.setItem("aisam-publish:actor:workspace:content", JSON.stringify({
+    key: "original-key",
+    version: "v1",
+    ids: ["allowed"],
+    previous: [],
+  }));
+  mocks.start.mockResolvedValue([{ id: "op", integrationId: "allowed", status: "Published" }]);
+  render(<PostNowModal {...props} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Kiểm tra kết quả" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Tiếp tục yêu cầu đăng" }));
+  await screen.findByText("Published");
+  expect(mocks.start).toHaveBeenCalledWith("content", "v1", ["allowed"], "original-key");
+});
 it("unknown outcome cannot prepare a fresh retry", async () => {
   mocks.start.mockResolvedValue([{ id: "op", integrationId: "allowed", status: "NeedsAttention", errorCode: "PUBLISH_OUTCOME_UNKNOWN" }]);
   render(<PostNowModal {...props} />);
