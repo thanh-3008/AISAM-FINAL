@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { Editor, Mark } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { documentText, readDocument, formatCaption, safeLink, type RichNode } from "../richTextDocument";
+import { documentText, readDocument, formatCaption, markdownDocument, safeLink, type RichNode } from "../richTextDocument";
 import RichTextPreview from "@/components/content/RichTextPreview";
 
 const document: RichNode = { type: "doc", content: [
@@ -43,5 +43,28 @@ describe("Rich text v1", () => {
     expect(result.container.textContent).toContain("<img");
     expect(safeLink("data:text/html,hello")).toBe(false);
     cleanup();
+  });
+  it("keeps marked text bold in platform previews without bolding plain text", () => {
+    const mixed = { type: "doc", content: [{ type: "paragraph", content: [
+      { type: "text", text: "In dam", marks: [{ type: "bold" }] },
+      { type: "text", text: " binh thuong" },
+    ] }] };
+    const result = render(<RichTextPreview content="" richTextJson={JSON.stringify(mixed)} platform="facebook" />);
+    expect(result.container.querySelector("strong")?.textContent).toBe("In dam");
+    expect(result.container.querySelector("strong")?.textContent).not.toContain("binh thuong");
+    expect(result.container.textContent).toBe("In dam binh thuong");
+    cleanup();
+  });
+  it("converts AI Markdown emphasis into editor marks", () => {
+    const generated = markdownDocument("**Ưu đãi** cho *hôm nay* và __miễn phí__");
+    const paragraph = generated.content?.[0];
+    expect(paragraph?.content?.map(node => [node.text, node.marks?.[0]?.type ?? null])).toEqual([
+      ["Ưu đãi", "bold"],
+      [" cho ", null],
+      ["hôm nay", "italic"],
+      [" và ", null],
+      ["miễn phí", "underline"],
+    ]);
+    expect(documentText(generated)).toBe("Ưu đãi cho hôm nay và miễn phí");
   });
 });

@@ -14,6 +14,7 @@ import { apiFetch } from "@/lib/apiClient";
 import { fetchChannelBreakdown, fetchTopPosts, type ChannelBreakdownItem, type TopPostItem } from "@/services/analyticsService";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { HolidayBanner } from "@/components/holiday/HolidayBanner";
+import { useToast } from "@/contexts/ToastContext";
 
 function CountUp({ value, suffix = "", duration = 1500 }: { value: string; suffix?: string; duration?: number }) {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -89,6 +90,7 @@ const RANK_GRADIENTS = [
 
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspaces();
+  const { showToast } = useToast();
   const workspaceName = activeWorkspace?.name || "User";
   const [visible, setVisible] = useState(false);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
@@ -130,17 +132,25 @@ export default function DashboardPage() {
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
+    let active = true;
     const platforms = ["facebook", "instagram", "tiktok"];
     const fetchTop = async () => {
       const results: Record<string, TopPostItem[]> = {};
-      await Promise.all(platforms.map(async (p) => {
-        results[p] = await fetchTopPosts("90d", "impressions", p, 3);
-      }));
-      setTopPostsByPlatform(results);
+      try {
+        await Promise.all(platforms.map(async (p) => {
+          results[p] = await fetchTopPosts("90d", "impressions", p, 3);
+        }));
+        if (active) setTopPostsByPlatform(results);
+      } catch {
+        if (active) setTopPostsByPlatform({});
+      }
     };
-    fetchTop();
-    const interval = setInterval(fetchTop, 30000);
-    return () => clearInterval(interval);
+    void fetchTop();
+    const interval = setInterval(() => void fetchTop(), 30000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
@@ -574,9 +584,31 @@ export default function DashboardPage() {
                         onClick={async () => {
                           if (isLoading) return;
                           setLoadingPostId(post.postId);
-                          const detail = await fetchPost(post.postId);
-                          if (detail) setDetailPost(detail);
-                          setLoadingPostId(null);
+                          try {
+                            const detail = await fetchPost(post.postId);
+                            if (detail) setDetailPost(detail);
+                          } catch (error) {
+                            const apiError = error as Error & { status?: number };
+                            if (apiError.status === 404 || apiError.status === 403) {
+                              setTopPostsByPlatform((current) => ({
+                                ...current,
+                                [platform]: (current[platform] || []).filter((item) => item.postId !== post.postId),
+                              }));
+                              showToast({
+                                type: "warning",
+                                title: "Bài viết không còn khả dụng",
+                                message: "Danh sách đã được cập nhật theo quyền truy cập hiện tại.",
+                              });
+                            } else {
+                              showToast({
+                                type: "error",
+                                title: "Không thể tải bài viết",
+                                message: apiError.message,
+                              });
+                            }
+                          } finally {
+                            setLoadingPostId((current) => current === post.postId ? null : current);
+                          }
                         }}
                       >
                         <div className="flex items-center gap-2.5">

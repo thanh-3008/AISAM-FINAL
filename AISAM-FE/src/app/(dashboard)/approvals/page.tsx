@@ -9,6 +9,7 @@ import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission } from "@/services/permissionService";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
+import RichTextPreview from "@/components/content/RichTextPreview";
 import { fetchAllVisibleContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
 import { fetchSchedules } from "@/services/scheduleService";
 import { fetchWorkspaceMembers, type WorkspaceMember } from "@/services/workspaceService";
@@ -255,6 +256,8 @@ function mapFailedScheduleToApprovalItem(schedule: ScheduleItem, sourceContent?:
     imageUrl: imageUrl || thumbnailAsImage || sourceThumbnailAsImage || undefined,
     videoUrl: videoUrl || thumbnailAsVideo || sourceThumbnailAsVideo || undefined,
     textContent: schedule.textContent || sourceContent?.textContent || "",
+    richTextJson: sourceContent?.richTextJson,
+    richTextVersion: sourceContent?.richTextVersion,
     createdAt: schedule.executedAt || schedule.scheduledAt,
     platforms: [normalizeSchedulePlatform(schedule.platform)],
     tags: ["Publish Failed"],
@@ -317,7 +320,10 @@ function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platfor
             <span className="material-symbols-outlined text-[22px]">send</span>
             <span className="material-symbols-outlined text-[22px] ml-auto">bookmark</span>
           </div>
-          <p className="text-sm whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed"><span className="font-bold">{item.brandName || "brand"}</span> {caption}</p>
+          <div className="text-sm break-words [overflow-wrap:anywhere] leading-relaxed">
+            <span className="font-bold">{item.brandName || "brand"}</span>{" "}
+            <RichTextPreview content={caption} richTextJson={item.richTextJson} platform={platform} className="inline" />
+          </div>
         </div>
       </div>
     );
@@ -349,7 +355,7 @@ function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platfor
         </div>
         <div className="absolute left-4 right-14 bottom-5">
           <p className="text-sm font-bold">@{(item.brandName || "brand").replace(/\s+/g, "").toLowerCase()}</p>
-          <p className="mt-2 text-xs leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere] line-clamp-6">{caption}</p>
+          <RichTextPreview content={caption} richTextJson={item.richTextJson} platform={platform} className="mt-2 text-xs leading-relaxed break-words [overflow-wrap:anywhere] line-clamp-6" />
         </div>
       </div>
     );
@@ -368,7 +374,7 @@ function SocialPostPreview({ item, platform }: { item: ApprovalListItem; platfor
         <span className="material-symbols-outlined text-[18px] ml-auto text-gray-500">more_horiz</span>
       </div>
       <div className="px-4 pb-3">
-        <p className="text-sm whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed">{caption}</p>
+        <RichTextPreview content={caption} richTextJson={item.richTextJson} platform={platform} className="text-sm break-words [overflow-wrap:anywhere] leading-relaxed" />
       </div>
       {(videoUrl || imageUrl) && (
         <div className="bg-gray-100 border-y border-gray-100">
@@ -396,12 +402,14 @@ export default function ApprovalsPage() {
 
   const canPublish = featureGate.can("publishPost");
   const canManageSchedules = featureGate.can("manageSchedules");
-  const isOwnerOrManager = !rbac && !!(
-    activeWorkspace?.isOwner ||
-    activeWorkspace?.memberRole === "Owner" ||
-    activeWorkspace?.memberRole === "Manager" ||
-    featureGate.can("reviewContent")
-  );
+  const isOwnerOrManager = rbac
+    ? rbac.workspaceRole === "Owner" || rbac.workspaceRole === "WorkspaceManager"
+    : !!(
+        activeWorkspace?.isOwner ||
+        activeWorkspace?.memberRole === "Owner" ||
+        activeWorkspace?.memberRole === "Manager" ||
+        featureGate.can("reviewContent")
+      );
   const [items, setItems] = useState<ApprovalListItem[]>([]);
   const contentItemsForReview = useMemo(
     () => items.filter((item) => item.approvalSource === "content" && !item.id.startsWith("schedule-")),
@@ -1018,7 +1026,17 @@ export default function ApprovalsPage() {
                                 <span className="material-symbols-outlined text-[17px]">visibility</span>
                                 <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Review</span>
                               </button>
-                              {rbac && isApprovedStatus(item.status) && <button className="text-sm text-primary underline" onClick={() => router.push(`/content/${item.id}`)}>Xem quyền đăng và lên lịch</button>}
+                              {rbac && isApprovedStatus(item.status) && (
+                                <button
+                                  onClick={() => router.push(`/content/${item.id}`)}
+                                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors relative group/btn"
+                                  title="Xem quyền đăng và lên lịch"
+                                  aria-label="Xem quyền đăng và lên lịch"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">event_available</span>
+                                  <span className="absolute -top-8 right-0 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Xem quyền đăng và lên lịch</span>
+                                </button>
+                              )}
                               {!rbac && isApprovedStatus(item.status) && (canPublish || canManageSchedules) && (
                                 <>
                                   {canPublish && <button onClick={() => { setPostNowItem(item); }}
@@ -1330,9 +1348,11 @@ export default function ApprovalsPage() {
                         </div>
                         <div>
                           <p className="text-label-2xs text-outline uppercase font-bold tracking-widest mb-1">Caption</p>
-                          <p className="text-body-sm text-on-surface-variant whitespace-pre-line break-words [overflow-wrap:anywhere] leading-relaxed">
-                            {drawerItem.textContent?.trim() || "No caption provided."}
-                          </p>
+                          <RichTextPreview
+                            content={drawerItem.textContent?.trim() || "No caption provided."}
+                            richTextJson={drawerItem.richTextJson}
+                            className="text-body-sm text-on-surface-variant break-words [overflow-wrap:anywhere] leading-relaxed"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1479,7 +1499,15 @@ export default function ApprovalsPage() {
                     Delete Rejected Content
                   </button>
                 )}
-                {rbac && isApprovedStatus(drawerItem.status) && <button className="text-sm text-primary underline" onClick={() => router.push(`/content/${drawerItem.id}`)}>Xem quyền đăng và lên lịch</button>}
+                {rbac && isApprovedStatus(drawerItem.status) && (
+                  <button
+                    onClick={() => { router.push(`/content/${drawerItem.id}`); setDrawerItem(null); }}
+                    className="flex-1 border border-primary/25 bg-primary/5 text-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/10 active:scale-[0.98] transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">event_available</span>
+                    Xem quyền đăng và lên lịch
+                  </button>
+                )}
                 {!rbac && isApprovedStatus(drawerItem.status) && (canPublish || canManageSchedules) && (
                   <>
                     {canPublish && <button onClick={() => { setPostNowItem(drawerItem); setDrawerItem(null); }}

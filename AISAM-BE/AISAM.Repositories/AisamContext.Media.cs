@@ -49,7 +49,7 @@ public partial class AisamContext
         var media=await ContentMedia.IgnoreQueryFilters().Include(m=>m.Asset).Where(m=>m.ContentId==content.Id).OrderBy(m=>m.SortOrder).ToListAsync(ct);
         var snapshot=new PublishSnapshot {ContentId=content.Id,WorkspaceId=content.WorkspaceId,Version=content.MediaVersion,CreatedBy=ExecutionActorId};
         snapshot.Payload=JsonSerializer.Serialize(new {content.Title,content.TextContent,content.RichTextJson,content.RichTextVersion,
-            PlainText=content.TextContent, FormatterVersion=1, FormattedCaptions=AISAM.Data.RichTextDocument.FormatCaptions(content.TextContent),
+            PlainText=content.TextContent, FormatterVersion=1, FormattedCaptions=AISAM.Data.RichTextDocument.FormatCaptions(content.TextContent,content.RichTextJson,content.RichTextVersion),
             content.ImageUrl,content.VideoUrl,content.AdType,content.Tags,content.BrandId,content.ProductId});
         foreach(var item in media)
         {

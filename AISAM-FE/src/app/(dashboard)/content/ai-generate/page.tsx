@@ -18,6 +18,8 @@ import { deriveTitleFromCaption } from "@/lib/generatedPostTitle";
 import { parseMediaMarkers, replaceVideoJobMarker, restoreConversationHistory, type ChatMessage, type Variation } from "@/lib/aiGenerateHistory";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import RichTextPreview from "@/components/content/RichTextPreview";
+import { getUserIdFromToken } from "@/lib/auth";
+import { documentText, markdownDocument, RICH_TEXT_VERSION } from "@/lib/richTextDocument";
 
 type GenerationMode = "exact_product_reference" | "normal_generation";
 type ImageSourceMode = "original_product_images" | "ai_exact_product_reference" | "ai_normal_generation";
@@ -159,12 +161,17 @@ function loadChatSession(key: string): string | null {
   }
 }
 
+function removeChatSession(key: string) {
+  localStorage.removeItem(key);
+}
+
 export default function AIGeneratePage() {
   const rbac = useRbac();
   const [teamId, setTeamId] = useState("");
   const router = useRouter();
   const { addToast } = useToast();
   const { activeWorkspace } = useWorkspaces();
+  const currentUserId = getUserIdFromToken();
   const featureGate = useFeatureGate();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
@@ -176,6 +183,8 @@ export default function AIGeneratePage() {
   const [productId, setProductId] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [contentRichTextJson, setContentRichTextJson] = useState<string | null>(null);
+  const contentDraftRef = useRef<{ text: string; richTextJson: string | null }>({ text: "", richTextJson: null });
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [platform, setPlatform] = useState(PLATFORMS[0].value);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -252,8 +261,8 @@ export default function AIGeneratePage() {
   const setUseOriginalProductImages = (checked: boolean) => {
     setImageSourceMode(checked ? "original_product_images" : "ai_exact_product_reference");
   };
-  const conversationStorageKey = activeWorkspace?.id && brandId
-    ? `ai-conversation-${activeWorkspace.id}-${brandId}-${productId || "no-product"}${rbac ? `-team-${teamId}` : ""}`
+  const conversationStorageKey = currentUserId && activeWorkspace?.id && brandId
+    ? `ai-conversation-${currentUserId}-${activeWorkspace.id}-${brandId}-${productId || "no-product"}${rbac ? `-team-${teamId}` : ""}`
     : null;
 
   useEffect(() => {
@@ -280,12 +289,15 @@ export default function AIGeneratePage() {
     let cancelled = false;
     const savedId = loadChatSession(conversationStorageKey);
     if (!savedId) return;
-    setConversationId(savedId);
     getConversationMessages(savedId).then(msgs => {
       if (!cancelled && msgs) {
+        setConversationId(savedId);
         const restored = restoreConversationHistory(msgs);
         setMessages(restored.chatMessages);
         setVariations(restored.variations);
+      } else if (!cancelled) {
+        removeChatSession(conversationStorageKey);
+        setConversationId(null);
       }
     });
     return () => { cancelled = true; };
@@ -459,8 +471,9 @@ export default function AIGeneratePage() {
       }
     }
 
+    const richTextPrompt = `${userPrompt}\n\nYêu cầu định dạng caption: dùng **văn bản** cho các ý quan trọng, *văn bản* cho nhấn mạnh nhẹ và __văn bản__ khi cần gạch chân. Chỉ định dạng có chọn lọc, không bôi đậm toàn bộ caption.`;
     const aiReply = await chatWithAI(
-      userPrompt,
+      richTextPrompt,
       0,
       brandId || undefined,
       productId || undefined,
@@ -476,7 +489,11 @@ export default function AIGeneratePage() {
     );
     if (aiReply?.errorMessage) {
       finishGeneration();
-      addToast(aiReply.errorMessage);
+      if (conversationStorageKey && conversationId && /không tồn tại|quyền truy cập|not found/i.test(aiReply.errorMessage)) {
+        removeChatSession(conversationStorageKey);
+        setConversationId(null);
+      }
+      addToast(aiReply.errorMessage, "error");
       return;
     }
     if (aiReply) {
@@ -527,8 +544,12 @@ export default function AIGeneratePage() {
   };
 
   const handleManualSave = async () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aisam-flush-editor"));
+    }
+    const currentContent = contentDraftRef.current;
     if (rbac && !teamId) { addToast("Chọn Team phụ trách trước khi lưu nội dung."); return; }
-    if (!title && !content && !imageUrl) {
+    if (!title && !currentContent.text && !imageUrl) {
       addToast("Nothing to save.");
       return;
     }
@@ -540,7 +561,9 @@ export default function AIGeneratePage() {
       productId: productId || null,
       adType: 0,
       title: title || "Untitled Post",
-      textContent: content || "",
+      textContent: currentContent.text,
+      richTextJson: currentContent.richTextJson,
+      richTextVersion: currentContent.richTextJson ? RICH_TEXT_VERSION : null,
       imageUrl: imageUrl || null,
       videoUrl: videoUrl || null,
       status: 0, // Draft
@@ -567,7 +590,7 @@ export default function AIGeneratePage() {
 
       setGeneratedId(result.id);
       setJustGenerated(true);
-      setLastSavedContent({ title, content, imageUrl, videoUrl });
+      setLastSavedContent({ title, content: currentContent.text, imageUrl, videoUrl });
       unsavedGeneratedIdsRef.current.delete(result.id);
       addToast("Post saved successfully!");
     } catch (e: any) {
@@ -690,8 +713,13 @@ export default function AIGeneratePage() {
     }
 
     const parsedPost = parseGeneratedPost(media.cleanText);
-    setTitle(deriveTitleFromCaption(parsedPost.caption));
-    setContent(parsedPost.caption);
+    const richDocument = markdownDocument(parsedPost.caption);
+    const plainCaption = documentText(richDocument);
+    setTitle(deriveTitleFromCaption(plainCaption));
+    setContent(plainCaption);
+    const richTextJson = JSON.stringify(richDocument);
+    setContentRichTextJson(richTextJson);
+    contentDraftRef.current = { text: plainCaption, richTextJson };
     setHashtags(h);
     setSelectedVariation(variation.id);
   };
@@ -862,9 +890,18 @@ export default function AIGeneratePage() {
                 </div>
                 <div>
                   <label className="text-label-xs text-on-surface-variant font-semibold mb-1 block">Caption</label>
-                  <textarea value={content} onChange={(e) => setContent(e.target.value)}
-                    className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-body-sm text-on-surface focus:border-primary/40 focus:ring-2 focus:ring-primary/5 outline-none transition-all resize-y min-h-[40px] max-h-[120px]"
-                    placeholder="Generated caption will appear here..." />
+                  <RichTextEditor
+                    value={content}
+                    richTextJson={contentRichTextJson}
+                    onChange={(plainText, richTextJson) => {
+                      setContent(plainText);
+                      setContentRichTextJson(richTextJson);
+                      contentDraftRef.current = { text: plainText, richTextJson };
+                    }}
+                    minHeight={72}
+                    placeholder="Generated caption will appear here..."
+                    className="max-h-[180px] overflow-y-auto"
+                  />
                   <div className="flex items-center justify-between mt-1">
                     <span className={`text-[11px] ${content.length > 2200 ? "text-danger-red font-semibold" : "text-outline/50"}`}>
                       {content.length} / 2200 characters
@@ -920,9 +957,12 @@ export default function AIGeneratePage() {
                       {title && (
                         <p className="px-3.5 text-[15px] font-semibold text-[#1a1a1a] mb-1">{title}</p>
                       )}
-                      <p className="px-3.5 text-[15px] text-[#1a1a1a] leading-[1.35] whitespace-pre-line mb-2.5">
-                        {content || "Your AI-generated content will appear here..."}
-                      </p>
+                      <RichTextPreview
+                        content={content || "Your AI-generated content will appear here..."}
+                        richTextJson={content ? contentRichTextJson : null}
+                        platform="facebook"
+                        className="px-3.5 text-[15px] text-[#1a1a1a] leading-[1.35] mb-2.5"
+                      />
                       {hashtags.length > 0 && (
                         <p className="px-3.5 text-[13px] text-[#216fdb] mb-2.5">
                           {hashtags.map((h) => `#${h}`).join(" ")}
@@ -980,7 +1020,10 @@ export default function AIGeneratePage() {
                           <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="#262626"><path d="M2 2v20l5-5h13V2H2zm18 13H6.5l-2.5 2.5V4h16v11z" /></svg>
                           <svg viewBox="0 0 24 24" className="w-[22px] h-[22px] ml-auto" fill="#262626"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l5-3 5 3V5c0-1.1-.9-2-2-2z" /></svg>
                         </div>
-                        <p className="text-[12px] font-semibold text-[#262626]">{brandName ? `${brandName.toLowerCase().replace(/\s+/g, "")} ` : ""}<span className="font-normal whitespace-pre-line">{content || "Write a caption..."}</span></p>
+                        <div className="text-[12px] text-[#262626]">
+                          <span className="font-semibold">{brandName ? `${brandName.toLowerCase().replace(/\s+/g, "")} ` : ""}</span>
+                          <RichTextPreview content={content || "Write a caption..."} richTextJson={content ? contentRichTextJson : null} platform="instagram" className="inline" />
+                        </div>
                         {hashtags.length > 0 && (
                           <p className="text-[12px] text-[#00376b]">{hashtags.map((h) => `#${h}`).join(" ")}</p>
                         )}
@@ -1010,7 +1053,7 @@ export default function AIGeneratePage() {
                             </div>
                             <p className="text-[13px] font-semibold">@{brandName?.toLowerCase().replace(/\s+/g, "") || "brand"}</p>
                           </div>
-                          <p className="text-[12px] leading-relaxed whitespace-pre-line">{content || "Add a caption..."}</p>
+                          <RichTextPreview content={content || "Add a caption..."} richTextJson={content ? contentRichTextJson : null} platform="tiktok" className="text-[12px] leading-relaxed" />
                           {hashtags.length > 0 && (
                             <p className="text-[12px] text-[#00acee] mt-0.5">{hashtags.map((h) => `#${h}`).join(" ")}</p>
                           )}
