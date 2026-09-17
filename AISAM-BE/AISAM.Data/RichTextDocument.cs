@@ -74,12 +74,12 @@ public static class RichTextDocument
             }
             return result;
         }
-        if (node.TryGetProperty("text", out _) || node.TryGetProperty("marks", out _)) throw new ArgumentException("RICH_TEXT_INVALID_BLOCK");
         if (type == "hardBreak")
         {
-            if (node.TryGetProperty("content", out _)) throw new ArgumentException("RICH_TEXT_INVALID_BREAK");
+            if (node.TryGetProperty("content", out _) || node.TryGetProperty("text", out _)) throw new ArgumentException("RICH_TEXT_INVALID_BREAK");
             return "\n";
         }
+        if (node.TryGetProperty("text", out _) || node.TryGetProperty("marks", out _)) throw new ArgumentException("RICH_TEXT_INVALID_BLOCK");
         var children = new List<string>();
         if (node.TryGetProperty("content", out var content))
         {
