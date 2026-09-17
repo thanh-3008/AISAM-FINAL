@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AISAM.Common.Models;
 using AISAM.Data.Model;
 using AISAM.Services.IServices;
@@ -352,8 +353,46 @@ public sealed class TikTokProvider : IProviderService
         }
     }
 
+    private readonly ConcurrentDictionary<string, (DateTime Expiry, TikTokUser User)> _userCache = new();
+
+    private void CacheUser(string accessToken, TikTokUser user)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken) || user == null) return;
+
+        if (_userCache.Count > 50)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var kvp in _userCache)
+            {
+                if (kvp.Value.Expiry <= now)
+                {
+                    _userCache.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+        _userCache[accessToken] = (DateTime.UtcNow.AddMinutes(2), user);
+    }
+
+    private bool TryGetCachedUser(string accessToken, out TikTokUser user)
+    {
+        if (!string.IsNullOrWhiteSpace(accessToken) &&
+            _userCache.TryGetValue(accessToken, out var cached) &&
+            cached.Expiry > DateTime.UtcNow)
+        {
+            user = cached.User;
+            return true;
+        }
+        user = null!;
+        return false;
+    }
+
     private async Task<TikTokUser> GetUserInfoAsync(string accessToken, CancellationToken cancellationToken)
     {
+        if (TryGetCachedUser(accessToken, out var cached))
+        {
+            return cached;
+        }
+
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"{_settings.ApiBaseUrl.TrimEnd('/')}/v2/user/info/?fields=open_id,display_name,avatar_url");
@@ -370,7 +409,9 @@ public sealed class TikTokProvider : IProviderService
         {
             throw new InvalidOperationException(result.Error.Message ?? "TikTok user profile request failed.");
         }
-        return result.Data?.User ?? new TikTokUser();
+        var user = result.Data?.User ?? new TikTokUser();
+        CacheUser(accessToken, user);
+        return user;
     }
 
     public Task<IEnumerable<FacebookAdAccountData>> GetAdAccountsAsync(string userAccessToken, CancellationToken cancellationToken = default)

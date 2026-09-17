@@ -33,6 +33,8 @@ function redirectToLoginAndHalt(): never {
 
 type ApiOptions = RequestInit & {
   data?: any;
+  timeoutMs?: number;
+  disableFailover?: boolean;
 };
 
 const PUBLIC_AUTH_ENDPOINTS = [
@@ -249,7 +251,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
     }
     await ensureValidToken();
   }
-  const { data, headers: customHeaders, ...customConfig } = options;
+  const { data, headers: customHeaders, timeoutMs, disableFailover, ...customConfig } = options;
   const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined, !isPublic);
 
   const hasJsonBody = data !== undefined && data !== null && !(data instanceof FormData);
@@ -275,7 +277,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
     ...customConfig,
   };
 
-  const response = await fetchWithFailover(endpoint, config);
+  const response = await fetchWithFailover(endpoint, config, { timeoutMs, disableFailover });
   assertWorkspace(config);
 
   if (response.status === 401 && token && !isPublic && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {

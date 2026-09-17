@@ -64,7 +64,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
             .ThenBy(value => value.Platform)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (item is null) return TimeSpan.FromSeconds(5);
+        if (item is null) return TimeSpan.FromSeconds(15);
 
         var creatorId = item.AutomationPlan.CreatedByUserId;
         if (!creatorId.HasValue || creatorId == Guid.Empty ||

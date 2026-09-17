@@ -205,7 +205,8 @@ export async function handleSocialCallback(platform: SocialPlatform, code: strin
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social-auth/${platform}/callback`, {
     method: "POST",
     data: { code, state } as BECallbackRequest,
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(60000),
+    timeoutMs: 60000,
   });
   if (res?.data) {
     return mapSocialAccount(res.data);
@@ -219,7 +220,8 @@ export const handleInstagramCallback = (code: string, state: string) => handleSo
 
 export async function getAvailableTargets(accountId: string): Promise<AvailableTarget[]> {
   const res: GenericResponse<BEAvailableTargetDto[]> = await apiClient(`/social/accounts/${accountId}/available-targets`, {
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(60000),
+    timeoutMs: 60000,
   });
   if (res?.data) {
     return res.data.map(mapAvailableTarget);
@@ -244,7 +246,8 @@ export async function linkTargets(
   const res: GenericResponse<BESocialAccountDto> = await apiClient(`/social/accounts/${accountId}/link-targets`, {
     method: "POST",
     data: { provider, providerTargetIds: targetIds, brandId } as BELinkTargetsRequest,
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(60000),
+    timeoutMs: 60000,
   });
   if (res?.data) {
     return mapSocialAccount(res.data);
