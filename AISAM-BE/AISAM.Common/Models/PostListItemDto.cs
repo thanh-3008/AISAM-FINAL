@@ -14,6 +14,8 @@ public sealed class PostListItemDto
     public string? Platform { get; set; }
     public string? Type { get; set; }
     public string? Caption { get; set; }
+    public string? RichTextJson { get; set; }
+    public int? RichTextVersion { get; set; }
     public string? ImageUrl { get; set; }
     public string? VideoUrl { get; set; }
     public string? ThumbnailUrl { get; set; }

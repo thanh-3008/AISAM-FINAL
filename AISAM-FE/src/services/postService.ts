@@ -16,6 +16,8 @@ export interface PostItem {
   platform: string | null;
   type: string | null;
   caption: string | null;
+  richTextJson?: string | null;
+  richTextVersion?: number | null;
   imageUrl?: string | null;
   imageUrls?: string[];
   videoUrl?: string | null;

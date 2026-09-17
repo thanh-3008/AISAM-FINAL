@@ -4,6 +4,7 @@ import { PostItem } from "@/services/postService";
 import { formatDate, getStatusStyle } from "@/lib/postUtils";
 import { PLATFORM_CONFIG, PlatformIcon } from "@/lib/contentConstants";
 import ImageGalleryView from "@/components/content/ImageGalleryView";
+import RichTextPreview from "@/components/content/RichTextPreview";
 import { parseMultipleImageUrls } from "@/services/contentService";
 
 interface PostDetailModalProps {
@@ -114,9 +115,12 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
             {post.caption && (
               <div className="mt-4">
                 <p className="text-label-sm text-outline font-medium mb-2">Caption</p>
-                <p className="text-body-sm text-on-surface leading-relaxed bg-surface-container-low p-4 rounded-xl border border-outline-variant/10 break-words whitespace-pre-wrap">
-                  {post.caption}
-                </p>
+                <RichTextPreview
+                  content={post.caption}
+                  richTextJson={post.richTextJson}
+                  platform={post.platform || undefined}
+                  className="text-body-sm text-on-surface leading-relaxed bg-surface-container-low p-4 rounded-xl border border-outline-variant/10 break-words"
+                />
               </div>
             )}
           </div>

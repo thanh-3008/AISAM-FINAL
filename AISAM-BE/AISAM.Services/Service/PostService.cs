@@ -98,6 +98,8 @@ public sealed class PostService : IPostService
             Platform = MapPlatform(post.Integration?.Platform),
             Type = MapAdType(post.Content.AdType),
             Caption = post.Content.TextContent,
+            RichTextJson = post.Content.RichTextJson,
+            RichTextVersion = post.Content.RichTextVersion,
             ImageUrl = post.Content.ImageUrl,
             VideoUrl = post.Content.VideoUrl,
             ThumbnailUrl = post.Content.ThumbnailUrl

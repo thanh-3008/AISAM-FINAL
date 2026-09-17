@@ -3,7 +3,6 @@ using AISAM.Data.Model;
 using AISAM.Data.Enumeration;
 using AISAM.Repositories;
 using Microsoft.EntityFrameworkCore;
-using System.Text;
 using System.Text.Json;
 
 namespace AISAM.IntegrationTests;
@@ -31,7 +30,7 @@ public class RichTextTests
         var plain = RichTextDocument.PlainText(document, 1);
         var captions = RichTextDocument.FormatCaptions(plain, document, 1);
 
-        Assert.Equal("𝗕𝗼𝗹𝗱 𝟭𝟮 𝘝𝘪𝘦̣̂𝘵 𝘽𝙤𝙩𝙝 Ấ̲n̲", captions["facebook"].Normalize(NormalizationForm.FormC));
+        Assert.Equal("𝗕𝗼𝗹𝗱 𝟭𝟮 𝘝𝘪ệ𝘵 𝘽𝙤𝙩𝙝 Ấ̲n̲", captions["facebook"]);
         Assert.Equal(plain, captions["instagram"]);
     }
 

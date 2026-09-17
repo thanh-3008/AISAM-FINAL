@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -135,15 +134,11 @@ public static class RichTextDocument
     private static string FormatFacebookText(string value, bool bold, bool italic, bool underline)
     {
         if (!bold && !italic && !underline) return value;
-        var source = bold || italic ? value.Normalize(NormalizationForm.FormD) : value;
         var result = new StringBuilder(value.Length * (underline ? 2 : 1));
-        var elements = StringInfo.GetTextElementEnumerator(source);
-        while (elements.MoveNext())
+        foreach (var rune in value.EnumerateRunes())
         {
-            var element = elements.GetTextElement();
-            foreach (var rune in element.EnumerateRunes())
-                result.Append(StyleAsciiRune(rune.Value, bold, italic));
-            if (underline && !string.IsNullOrWhiteSpace(element)) result.Append('\u0332');
+            result.Append(StyleAsciiRune(rune.Value, bold, italic));
+            if (underline && !Rune.IsWhiteSpace(rune)) result.Append('\u0332');
         }
         return result.ToString();
     }
