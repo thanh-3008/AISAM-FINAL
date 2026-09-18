@@ -981,16 +981,16 @@ public sealed class AIService : IAIService
                 using var httpClient = new HttpClient();
                 var bytes = await httpClient.GetByteArrayAsync(result.MediaUrl, cancellationToken);
                 var fileName = $"ai-video-{generation.Id}.mp4";
-                var url = await _mediaStorage.UploadBytesAsync(bytes, "ai-videos", fileName, cancellationToken);
+                var stored = await _mediaStorage.UploadBytesDetailedAsync(bytes, "ai-videos", fileName, cancellationToken);
 
-                generation.GeneratedVideoUrl = url;
+                generation.GeneratedVideoUrl = stored.Url;
                 generation.Status = AiStatusEnum.Completed;
                 await _generationRepository.UpdateAsync(generation, cancellationToken);
 
                 // Update the associated Content so it shows up in the frontend
                 if (_access is AISAM.Services.Access.RbacV2AccessAdapter && !(await _access.CheckAsync(new(userId,workspaceId,AISAM.Services.Access.AccessResourceKind.Content,generation.ContentId,AISAM.Services.Access.ResourcePermission.ContentEdit),cancellationToken)).Allowed)
                     return GenericResponse<AiGenerationResponse>.CreateError("Video job access was revoked.",HttpStatusCode.Forbidden);
-                generation.Content.VideoUrl = url;
+                generation.Content.VideoUrl = stored.Url;
                 await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
 
                 // Deduct credits now that it's completed

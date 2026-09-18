@@ -44,6 +44,14 @@ public partial class AisamContext
         m.Entity<Asset>().HasIndex(a=>new{a.WorkspaceId,a.BrandId,a.CreatedAt});
     }
 
+    private readonly Dictionary<string, AISAM.Data.Model.StoredMedia> _resolvedMediaMetadata = new(StringComparer.OrdinalIgnoreCase);
+
+    public void RegisterResolvedMediaMetadata(string url, AISAM.Data.Model.StoredMedia metadata)
+    {
+        if (!string.IsNullOrWhiteSpace(url) && metadata != null)
+            _resolvedMediaMetadata[url] = metadata;
+    }
+
     public async Task<PublishSnapshot> CaptureSnapshotAsync(Content content,CancellationToken ct)
     {
         var media=await ContentMedia.IgnoreQueryFilters().Include(m=>m.Asset).Where(m=>m.ContentId==content.Id).OrderBy(m=>m.SortOrder).ToListAsync(ct);
@@ -66,8 +74,36 @@ public partial class AisamContext
                 try {using var j=JsonDocument.Parse(content.ImageUrl);if(j.RootElement.ValueKind==JsonValueKind.Array) urls.AddRange(j.RootElement.EnumerateArray().Where(e=>e.ValueKind==JsonValueKind.String).Select(e=>(e.GetString()!,"image/legacy")));else if(j.RootElement.ValueKind==JsonValueKind.String)urls.Add((j.RootElement.GetString()!,"image/legacy"));}
                 catch(JsonException){urls.Add((content.ImageUrl,"image/legacy"));}
             }
-            if(!string.IsNullOrWhiteSpace(content.VideoUrl)) urls.Add((content.VideoUrl,"video/legacy"));
             foreach(var url in urls) snapshot.Media.Add(new SnapshotMedia {SnapshotId=snapshot.Id,SortOrder=snapshot.Media.Count,Url=url.Url,MimeType=url.Mime,IsCover=snapshot.Media.Count==0});
+            if(!string.IsNullOrWhiteSpace(content.VideoUrl))
+            {
+                if (_resolvedMediaMetadata.TryGetValue(content.VideoUrl, out var meta))
+                {
+                    snapshot.Media.Add(new SnapshotMedia
+                    {
+                        SnapshotId = snapshot.Id,
+                        SortOrder = snapshot.Media.Count,
+                        Url = content.VideoUrl,
+                        MimeType = "video/mp4",
+                        DurationSeconds = meta.DurationSeconds,
+                        SizeBytes = meta.SizeBytes,
+                        Width = meta.Width,
+                        Height = meta.Height,
+                        IsCover = snapshot.Media.Count == 0
+                    });
+                }
+                else
+                {
+                    snapshot.Media.Add(new SnapshotMedia
+                    {
+                        SnapshotId = snapshot.Id,
+                        SortOrder = snapshot.Media.Count,
+                        Url = content.VideoUrl,
+                        MimeType = "video/legacy",
+                        IsCover = snapshot.Media.Count == 0
+                    });
+                }
+            }
         }
         snapshot.Checksum=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(snapshot.Payload+JsonSerializer.Serialize(snapshot.Media.Select(m=>new{m.AssetId,m.SortOrder,m.Url,m.MimeType,m.IsCover,m.AltText,m.Caption,m.Checksum,m.SizeBytes,m.DurationSeconds,m.Width,m.Height})))));
         PublishSnapshots.Add(snapshot);return snapshot;

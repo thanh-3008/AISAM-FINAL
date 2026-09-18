@@ -190,7 +190,9 @@ export async function fetchWithFailover(
   const maxAttempts = options?.disableFailover ? 1 : Math.min(candidates.length, 3);
   let timeoutMs = options?.timeoutMs;
   if (!timeoutMs) {
-    if (/(^|\/)(ai|content\/(generate|media)|analytics\/insights|social(-auth|\/))/i.test(pathOrUrl)) {
+    if (/(^|\/)automation(-plans)?/i.test(pathOrUrl)) {
+      timeoutMs = 64000;
+    } else if (/(^|\/)(ai|content\/(generate|media)|analytics\/insights|social(-auth|\/))/i.test(pathOrUrl)) {
       timeoutMs = 60000;
     } else {
       timeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;

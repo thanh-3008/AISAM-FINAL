@@ -124,3 +124,19 @@ export function formatCaption(document: RichNode, platform = "facebook") {
   const text = documentText(document);
   return { text, characters: Array.from(text).length };
 }
+
+/**
+ * Strips redundant marks from hardBreak nodes to keep payloads clean and compact.
+ * Marks on line breaks have no typographic meaning.
+ */
+export function sanitizeDocument(node: RichNode): RichNode {
+  const result: RichNode = { ...node };
+  if (result.type === "hardBreak" && result.marks) {
+    delete result.marks;
+  }
+  if (result.content) {
+    result.content = result.content.map(sanitizeDocument);
+  }
+  return result;
+}
+

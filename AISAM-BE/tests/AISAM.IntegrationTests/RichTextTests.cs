@@ -69,4 +69,50 @@ public class RichTextTests
         Assert.Null(content.RichTextJson);
         Assert.Equal("legacy writer replacement <literal> **text**", content.TextContent);
     }
+
+    [Fact]
+    public void MultiMarksOnTextPassValidationAndRenderCorrectly()
+    {
+        const string multiMarkDoc = """
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Multi-mark test","marks":[{"type":"bold"},{"type":"italic"},{"type":"underline"},{"type":"highlight"}]}]}]}
+            """;
+        var plain = RichTextDocument.PlainText(multiMarkDoc, 1);
+        Assert.Equal("Multi-mark test", plain);
+    }
+
+    [Fact]
+    public void HardBreakWithMarksPassesValidationAndRendersAsNewline()
+    {
+        const string docWithMarkedBreak = """
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Line 1","marks":[{"type":"bold"},{"type":"italic"},{"type":"underline"}]},{"type":"hardBreak","marks":[{"type":"bold"},{"type":"italic"},{"type":"underline"}]},{"type":"text","text":"Line 2"}]}]}
+            """;
+        var plain = RichTextDocument.PlainText(docWithMarkedBreak, 1);
+        Assert.Equal("Line 1\nLine 2", plain);
+    }
+
+    [Fact]
+    public void TrueBlockNodesWithMarksStillFailValidation()
+    {
+        const string invalidBlockDoc = """
+            {"type":"doc","content":[{"type":"paragraph","marks":[{"type":"bold"}],"content":[{"type":"text","text":"Bad block"}]}]}
+            """;
+        var ex = Assert.Throws<ArgumentException>(() => RichTextDocument.PlainText(invalidBlockDoc, 1));
+        Assert.Equal("RICH_TEXT_INVALID_BLOCK", ex.Message);
+    }
+
+    [Fact]
+    public async Task SaveWithMultiMarkAndMarkedHardBreakSucceeds()
+    {
+        const string fullDoc = """
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"• **ĐỈNH CAO MIZUNO**","marks":[{"type":"bold"},{"type":"italic"},{"type":"underline"}]},{"type":"hardBreak","marks":[{"type":"bold"},{"type":"italic"},{"type":"underline"}]},{"type":"text","text":"👉 Xem chi tiết","marks":[{"type":"link","attrs":{"href":"https://example.com"}}]}]}]}
+            """;
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var content = new Content { TextContent = "untrusted", RichTextJson = fullDoc, RichTextVersion = 1 };
+        db.Add(content);
+        await db.SaveChangesAsync();
+
+        Assert.Equal("• **ĐỈNH CAO MIZUNO**\n👉 Xem chi tiết (https://example.com)", content.TextContent);
+        Assert.Equal(fullDoc, content.RichTextJson);
+    }
 }
+

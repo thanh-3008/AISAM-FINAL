@@ -39,4 +39,6 @@ public interface IContentService
     Task<GenericResponse<bool>> RestoreInWorkspaceAsync(Guid id, Guid workspaceId, CancellationToken cancellationToken = default)
         => RestoreAsync(id, workspaceId, cancellationToken);
     Task<GenericResponse<List<string>>> GetDistinctTagsByWorkspaceAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<ContentResponseDto>> AdminReFreezeSnapshotAsync(Guid contentId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }

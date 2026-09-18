@@ -19,7 +19,7 @@ import HighlightExtension from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Mark } from "@tiptap/react";
-import { readDocument, documentText, formatCaption, safeLink, type RichNode } from "@/lib/richTextDocument";
+import { readDocument, documentText, formatCaption, safeLink, sanitizeDocument, type RichNode } from "@/lib/richTextDocument";
 
 
 // Quick emoji list
@@ -201,7 +201,8 @@ export default function RichTextEditor({
       flushChangeRef.current();
     },
     onUpdate: ({ editor: ed }) => {
-      const json = ed.getJSON() as RichNode;
+      const rawJson = ed.getJSON() as RichNode;
+      const json = sanitizeDocument(rawJson);
       const markdown = documentText(json);
       const jsonStr = JSON.stringify(json);
       externalValueRef.current = markdown;

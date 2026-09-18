@@ -130,6 +130,69 @@ public class AutomationCreatorTests
         Assert.Equal(0, credits.Releases);
     }
 
+    [Fact]
+    public async Task AutomationGenerationService_AppliesConfiguredTimeoutAndFailsItemWhenTimeoutExpires()
+    {
+        await using var db = new AisamContext(new DbContextOptionsBuilder<AisamContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var user = new User { Email = "timeout-user@example.test" };
+        var profile = new Profile { UserId = user.Id };
+        var workspace = new Workspace();
+        var brand = new Brand { WorkspaceId = workspace.Id, ProfileId = profile.Id };
+        var plan = new AutomationPlan
+        {
+            WorkspaceId = workspace.Id,
+            ProfileId = profile.Id,
+            CreatedByUserId = user.Id,
+            Status = AutomationPlanStatusEnum.Generating
+        };
+        var item = new AutomationItem
+        {
+            AutomationPlan = plan,
+            Brand = brand,
+            BrandId = brand.Id,
+            Platform = "facebook",
+            RequestedContentType = AutomationContentTypeEnum.Text,
+            Status = AutomationItemStatusEnum.Pending,
+            Topic = "Timeout Test Topic"
+        };
+        db.AddRange(user, profile, workspace, brand, plan, item,
+            new WorkspaceMember { WorkspaceId = workspace.Id, UserId = user.Id, WorkspaceRoleV2 = WorkspaceRoleV2.Owner });
+        await db.SaveChangesAsync();
+
+        var mockTextClient = new MockSlowTextClient();
+        var automationSettings = new AutomationSettings { TimeoutSeconds = 1 };
+        var service = new AutomationGenerationService(
+            db,
+            mockTextClient,
+            null!,
+            null!,
+            null!,
+            new Credits(),
+            Options.Create(new ImageProviderSettings()),
+            Options.Create(new VideoProviderSettings()),
+            NullLogger<AutomationGenerationService>.Instance,
+            access: null,
+            automationOptions: Options.Create(automationSettings));
+
+        await service.ProcessNextAsync();
+
+        Assert.Equal(AutomationItemStatusEnum.GenerationFailed, item.Status);
+        Assert.Contains("AI generation timed out after 1 seconds.", item.LastError);
+    }
+
+    private sealed class MockSlowTextClient : IGeminiTextClient
+    {
+        public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+            return "Generated Text";
+        }
+
+        public Task<string> GenerateWithVisionAsync(string textPrompt, byte[] imageBytes, string mimeType = "image/jpeg", CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+    }
+
     private sealed class Credits : IAutomationCreditService
     {
         public int Releases { get; private set; }
@@ -142,3 +205,4 @@ public class AutomationCreatorTests
             => throw new InvalidOperationException("Must not charge credits.");
     }
 }
+
