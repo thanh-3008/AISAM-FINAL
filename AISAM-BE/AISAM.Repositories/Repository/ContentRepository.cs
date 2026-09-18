@@ -91,6 +91,8 @@ public sealed class ContentRepository : IContentRepository
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
                 BrandName = c.Brand.Name,
+                CreatorId = c.PrimaryCreatorId,
+                CreatorName = c.PrimaryCreator != null ? (c.PrimaryCreator.FullName ?? c.PrimaryCreator.Email) : null,
                 WorkspaceId = c.WorkspaceId,
                 AdType = c.AdType,
                 Title = c.Title,
@@ -158,6 +160,8 @@ public sealed class ContentRepository : IContentRepository
             ProfileId = c.ProfileId,
             BrandId = c.BrandId,
             BrandName = c.Brand.Name,
+            CreatorId = c.PrimaryCreatorId,
+            CreatorName = c.PrimaryCreator != null ? (c.PrimaryCreator.FullName ?? c.PrimaryCreator.Email) : null,
             WorkspaceId = c.WorkspaceId,
             AdType = c.AdType,
             Title = c.Title,
@@ -308,6 +312,8 @@ public sealed class ContentRepository : IContentRepository
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
                 BrandName = c.Brand.Name,
+                CreatorId = c.PrimaryCreatorId,
+                CreatorName = c.PrimaryCreator != null ? (c.PrimaryCreator.FullName ?? c.PrimaryCreator.Email) : null,
                 WorkspaceId = c.WorkspaceId,
                 AdType = c.AdType,
                 Title = c.Title,
@@ -367,6 +373,7 @@ public sealed class ContentRepository : IContentRepository
             .Include(content => content.Profile)
             .Include(content => content.Brand)
             .Include(content => content.Product)
+            .Include(content => content.PrimaryCreator)
             .Include(content => content.Approvals);
     }
 }

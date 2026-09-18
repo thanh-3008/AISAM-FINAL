@@ -1,5 +1,5 @@
 // File blobs stay local to this browser; keys include actor, workspace and content.
-export interface QueuedFile { id: string; file: File; status: string; error?: string; }
+export interface QueuedFile { id: string; file: File; status: string; error?: string; previewUrl?: string; }
 let writes: Promise<unknown> = Promise.resolve();
 function transaction<T>(key: string, value?: QueuedFile[]): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -23,6 +23,7 @@ export async function loadComposerFiles(key: string): Promise<QueuedFile[]> {
   return (files ?? []).map(f => ({ ...f, status: "Pending" }));
 }
 export function storeComposerFiles(key: string, files: QueuedFile[]) {
-  writes = writes.catch(() => undefined).then(() => transaction(key, files.filter(f => f.status !== "Done")));
+  const persisted = files.filter(f => f.status !== "Done").map(({ previewUrl: _, ...file }) => file);
+  writes = writes.catch(() => undefined).then(() => transaction(key, persisted));
   return writes;
 }

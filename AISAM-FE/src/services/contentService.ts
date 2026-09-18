@@ -33,6 +33,8 @@ export interface ContentApiItem {
   profileId: string;
   brandId: string;
   brandName: string | null;
+  creatorId?: string | null;
+  creatorName?: string | null;
   productId: string | null;
   productName: string | null;
   adType: AdType;
@@ -59,6 +61,8 @@ export interface ContentItem {
   title: string;
   brandId: string;
   brandName: string;
+  creatorId?: string;
+  creatorName?: string;
   productName: string;
   type: ContentType;
   status: ContentStatus;
@@ -81,6 +85,8 @@ export interface ContentDetail {
   title: string;
   brandId: string;
   brandName: string;
+  creatorId?: string;
+  creatorName: string;
   productName: string;
   type: ContentType;
   status: ContentStatus;
@@ -279,6 +285,8 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     title: api.title || "",
     brandId: api.brandId,
     brandName: api.brandName || "",
+    creatorId: api.creatorId || undefined,
+    creatorName: api.creatorName || "Unknown",
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: mapContentApiStatus(api.status),
@@ -303,6 +311,8 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     title: api.title || "",
     brandId: api.brandId,
     brandName: api.brandName || "",
+    creatorId: api.creatorId || undefined,
+    creatorName: api.creatorName || "Unknown",
     productName: api.productName || "",
     type: ADTYPE_TO_CONTENTTYPE[api.adType] || "TEXT",
     status: mapContentApiStatus(api.status),

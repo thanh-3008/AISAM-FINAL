@@ -665,6 +665,7 @@ export default function ContentPage() {
                       </th>
                       <th className="px-5 py-3.5 font-semibold">Content</th>
                       <th className="px-5 py-3.5 font-semibold">Brand</th>
+                      <th className="px-5 py-3.5 font-semibold">Created by</th>
                       <th className="px-5 py-3.5 font-semibold">Type</th>
                       <th className="px-5 py-3.5 font-semibold">Status</th>
                       <th className="px-5 py-3.5 font-semibold">Tags</th>
@@ -702,6 +703,12 @@ export default function ContentPage() {
                           </button>
                         </td>
                         <td className="px-5 py-3.5 text-body-sm text-on-surface-variant">{item.brandName}</td>
+                        <td className="px-5 py-3.5 text-body-sm text-on-surface-variant">
+                          <span className="inline-flex items-center gap-1.5" title={item.creatorName}>
+                            <span className="material-symbols-outlined text-[16px] text-outline">person</span>
+                            <span className="max-w-36 truncate">{item.creatorName}</span>
+                          </span>
+                        </td>
                         <td className="px-5 py-3.5">
                           <span className={`px-2 py-0.5 rounded-md text-label-xs font-semibold ${getTypeConfig(item.type).color}`}>{item.type}</span>
                         </td>
@@ -1203,6 +1210,10 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction,
             <span>{item.brandName}</span>
             <span className="w-1 h-1 rounded-full bg-outline/30" />
             <span>{item.productName}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mb-3" title={item.creatorName}>
+            <span className="material-symbols-outlined text-[14px] text-outline">person</span>
+            <span className="truncate">{item.creatorName}</span>
           </div>
           <div className="flex items-center justify-between mb-3">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${STATUS_STYLES[item.status]}`}>

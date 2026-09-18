@@ -10,7 +10,8 @@ import { Kind, Permission } from "@/services/permissionService";
 import Header from "@/components/layout/Header";
 import PostNowModal from "@/components/content/PostNowModal";
 import RichTextPreview from "@/components/content/RichTextPreview";
-import { fetchAllVisibleContents, approveContent, rejectContent, deleteContent } from "@/services/contentService";
+import ContentMediaGallery from "@/components/content/ContentMediaGallery";
+import { fetchAllVisibleContents, approveContent, rejectContent, deleteContent, parseMultipleImageUrls } from "@/services/contentService";
 import { fetchSchedules } from "@/services/scheduleService";
 import { fetchWorkspaceMembers, type WorkspaceMember } from "@/services/workspaceService";
 import {
@@ -1200,34 +1201,13 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
-                <div className="relative w-full aspect-[2/1] bg-gradient-to-br from-surface-container to-surface-container-high flex items-center justify-center overflow-hidden">
-                  {getPreviewVideoUrl(drawerItem) ? (
-                    <video
-                      src={getPreviewVideoUrl(drawerItem)}
-                      className="absolute inset-0 w-full h-full object-contain bg-black"
-                      controls
-                      preload="metadata"
-                    />
-                  ) : getPreviewImageUrl(drawerItem) ? (
-                    <img
-                      src={getPreviewImageUrl(drawerItem)}
-                      alt={drawerItem.title || "Approval asset preview"}
-                      className="absolute inset-0 w-full h-full object-contain bg-surface-container-low"
-                    />
-                  ) : (
-                    <>
-                      <div className={`absolute inset-0 bg-gradient-to-br ${getTypeStyle(drawerItem.type)} opacity-15`} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent" />
-                      <div className="relative z-10 flex flex-col items-center gap-3">
-                        <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getTypeStyle(drawerItem.type)} flex items-center justify-center text-white shadow-lg`}>
-                          <span className="material-symbols-outlined text-4xl">{getTypeConfig(drawerItem.type).icon}</span>
-                        </div>
-                        <span className="text-label-sm font-semibold text-on-surface-variant bg-surface-container-lowest/80 backdrop-blur-sm px-4 py-1.5 rounded-full">
-                          {drawerItem.type} Asset Preview
-                        </span>
-                      </div>
-                    </>
-                  )}
+                <div className="relative w-full bg-surface-container p-4">
+                  <ContentMediaGallery
+                    contentId={drawerItem.sourceContentId ?? (drawerItem.approvalSource === "schedule" ? undefined : drawerItem.id)}
+                    videoUrl={getPreviewVideoUrl(drawerItem)}
+                    images={drawerItem.imageUrls?.length ? drawerItem.imageUrls : parseMultipleImageUrls(drawerItem.imageUrl)}
+                    title={drawerItem.title}
+                  />
                   <div className="absolute top-3 right-3 flex gap-1.5">
                     <span className="text-label-xs font-bold px-2 py-1 rounded-md bg-surface-container-lowest/70 backdrop-blur-sm text-on-surface-variant">
                       {getTypeConfig(drawerItem.type).label}

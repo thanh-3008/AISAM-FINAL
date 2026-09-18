@@ -21,6 +21,7 @@ interface MultiImageUploadProps {
   /** Optional: override upload function (for testing) */
   onUpload?: (file: File) => Promise<string>;
   className?: string;
+  compact?: boolean;
 }
 
 export default function MultiImageUpload({
@@ -28,6 +29,7 @@ export default function MultiImageUpload({
   onChange,
   onUpload,
   className = "",
+  compact = false,
 }: MultiImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -222,7 +224,7 @@ export default function MultiImageUpload({
       />
 
       {/* Label + counter */}
-      <div className="flex items-center justify-between">
+      {!compact && <div className="flex items-center justify-between">
         <label className="text-label-sm text-on-surface-variant font-semibold">
           Images
         </label>
@@ -237,10 +239,10 @@ export default function MultiImageUpload({
         >
           {images.length} / {MAX_IMAGES_PER_POST}
         </span>
-      </div>
+      </div>}
 
       {/* Image Grid */}
-      {images.length > 0 && (
+      {!compact && images.length > 0 && (
         <div
           className="grid grid-cols-3 gap-2"
           onDragOver={(e) => {
@@ -268,7 +270,6 @@ export default function MultiImageUpload({
               }`}
             >
               <div className="aspect-square bg-surface-container">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={url}
                   alt={`Image ${index + 1}`}
@@ -376,7 +377,7 @@ export default function MultiImageUpload({
         </div>
       )}
 
-      {images.length > 1 && (
+      {!compact && images.length > 1 && (
         <p className="text-label-xs text-outline">
           <span className="material-symbols-outlined text-[12px] align-middle mr-0.5">drag_indicator</span>
           Drag images to reorder. First image is used as cover.
