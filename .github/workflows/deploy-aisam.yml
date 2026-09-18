@@ -33,5 +33,6 @@ jobs:
             # it. A production build changes its route-types import, which used
             # to leave the VPS worktree dirty and make the next git pull abort.
             git restore --worktree AISAM-FE/next-env.d.ts 2>/dev/null || true
+            rm -rf AISAM-BE/AISAM.API/publish/publish 2>/dev/null || true
             chmod +x deploy-aisam.sh
             ./deploy-aisam.sh
