@@ -17,8 +17,6 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import MediaComposer from "@/components/content/MediaComposer";
-import ImageGalleryView from "@/components/content/ImageGalleryView";
-import MultiImageUpload from "@/components/content/MultiImageUpload";
 
 interface FormState {
   title: string;
@@ -67,14 +65,31 @@ export default function ContentDetailPage() {
   const formRef = useRef(form);
   const itemRef = useRef(item);
 
-  const handleMediaSaved = useCallback(() => {
-    setItem(p => p ? { ...p, status: "Draft" } : p);
-  }, []);
+  const handleMediaSaved = useCallback(async () => {
+    const refreshed = await fetchContentById(String(params.id));
+    if (!refreshed) {
+      setItem(p => p ? { ...p, status: "Draft" } : p);
+      return;
+    }
+    const refreshedImages = refreshed.imageUrls?.length
+      ? refreshed.imageUrls
+      : parseMultipleImageUrls(refreshed.imageUrl);
+    setItem(refreshed as any);
+    setForm(previous => {
+      const next = { ...previous, status: "Draft" as ContentStatus, imageUrls: refreshedImages };
+      formRef.current = next;
+      return next;
+    });
+  }, [params.id]);
 
   const updateForm = useCallback((partial: Partial<FormState>) => {
     formRef.current = { ...formRef.current, ...partial };
     setForm((prev) => ({ ...prev, ...partial }));
   }, []);
+
+  const handleMediaCollectionChange = useCallback((media: { items: Array<{ url: string; mimeType: string }> }) => {
+    updateForm({ imageUrls: media.items.filter(entry => entry.mimeType.startsWith("image/")).map(entry => entry.url) });
+  }, [updateForm]);
 
   useEffect(() => {
     formRef.current = form;
@@ -224,8 +239,8 @@ export default function ContentDetailPage() {
       richTextJson: currentForm.richTextJson,
       richTextVersion: currentForm.richTextJson ? 1 : null,
       contextDescription: currentForm.description,
-      imageUrls: item?.type === "IMAGE" ? currentForm.imageUrls : undefined,
-      imageUrl: item?.type === "IMAGE" && currentForm.imageUrls.length > 0 ? currentForm.imageUrls[0] : undefined,
+      imageUrls: item?.type === "IMAGE" || item?.type === "VIDEO" ? currentForm.imageUrls : undefined,
+      imageUrl: (item?.type === "IMAGE" || item?.type === "VIDEO") && currentForm.imageUrls.length > 0 ? currentForm.imageUrls[0] : undefined,
     });
     if (result.success) {
       setEditing(false);
@@ -483,25 +498,19 @@ export default function ContentDetailPage() {
                   </span>
                 </div>
 
-                {item.type === "IMAGE" && (
-                  <div className="w-full max-w-2xl mx-auto space-y-4">
-                    {editing ? (
-                      <div className="bg-surface-container/40 p-4 rounded-2xl border border-outline-variant/20">
-                        <MultiImageUpload
-                          images={form.imageUrls}
-                          onChange={(urls) => updateForm({ imageUrls: urls })}
-                        />
-                      </div>
-                    ) : (
-                      <ImageGalleryView
-                        images={form.imageUrls.length > 0 ? form.imageUrls : ((item.imageUrls && item.imageUrls.length > 0) ? item.imageUrls : parseMultipleImageUrls(item.imageUrl))}
-                        title={item.title}
-                      />
-                    )}
-                  </div>
-                )}
+                {(item.type === "IMAGE" || item.type === "VIDEO") && <MediaComposer
+                  compact
+                  autoSave
+                  contentId={String(params.id)}
+                  canEdit={editing && allowed(0)}
+                  fallbackVideoUrl={item.videoUrl}
+                  fallbackImages={form.imageUrls}
+                  onCollectionChange={handleMediaCollectionChange}
+                  onDirtyChange={setMediaDirty}
+                  onSaved={handleMediaSaved}
+                />}
 
-                <MediaComposer contentId={String(params.id)} canEdit={allowed(0)} onDirtyChange={setMediaDirty} onSaved={handleMediaSaved} />
+                {item.type === "TEXT" && <MediaComposer contentId={String(params.id)} canEdit={allowed(0)} onDirtyChange={setMediaDirty} onSaved={handleMediaSaved} />}
                 {item.type === "TEXT" && (
                   <div className="w-full max-w-2xl mx-auto">
                     <div className="bg-surface-container rounded-xl p-6 min-h-50">
@@ -527,24 +536,6 @@ export default function ContentDetailPage() {
                   </div>
                 )}
 
-                {item.type === "VIDEO" && (
-                  <div className="w-full mx-auto flex justify-center">
-                    <div className="w-full bg-linear-to-br from-surface-container to-surface-container-high rounded-xl flex items-center justify-center relative overflow-hidden" style={{ minHeight: "250px" }}>
-                      {item.videoUrl ? (
-                        <video src={item.videoUrl} controls className="w-full h-auto max-h-[75vh] object-contain bg-black rounded-xl" />
-                      ) : (
-                        <div className={`w-24 h-24 my-12 mx-auto rounded-full bg-linear-to-br ${typeGradient} flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-110 transition-transform`}>
-                          <span className="material-symbols-outlined text-4xl">play_arrow</span>
-                        </div>
-                      )}
-                      {!item.videoUrl && item.duration && (
-                        <span className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 text-white text-label-xs rounded-md font-semibold">
-                          {item.duration}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
                 {item.type === "VIDEO" && (
                   <div className="flex items-center gap-4 mt-3 text-label-xs text-outline">
                     {item.duration && <span>{item.duration}</span>}
@@ -609,6 +600,14 @@ export default function ContentDetailPage() {
                 <div>
                   <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Product</p>
                   <p className="text-body-sm text-on-surface">{item.productName}</p>
+                </div>
+
+                <div>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Created by</p>
+                  <p className="text-body-sm text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[17px] text-outline">person</span>
+                    {item.creatorName}
+                  </p>
                 </div>
 
                 {/* Status */}

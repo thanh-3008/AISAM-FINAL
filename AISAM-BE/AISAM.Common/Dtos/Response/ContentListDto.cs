@@ -8,6 +8,8 @@ public sealed class ContentListDto
     public Guid ProfileId { get; set; }
     public Guid BrandId { get; set; }
     public string? BrandName { get; set; }
+    public Guid? CreatorId { get; set; }
+    public string? CreatorName { get; set; }
     public Guid WorkspaceId { get; set; }
     public AdTypeEnum AdType { get; set; }
     public string? Title { get; set; }

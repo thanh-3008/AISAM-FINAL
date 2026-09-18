@@ -1092,6 +1092,10 @@ public sealed class ContentService : IContentService
             ProfileId = content.ProfileId,
             BrandId = content.BrandId,
             BrandName = content.Brand?.Name,
+            CreatorId = content.PrimaryCreatorId,
+            CreatorName = content.PrimaryCreator is null
+                ? null
+                : content.PrimaryCreator.FullName ?? content.PrimaryCreator.Email,
             ProductId = content.ProductId,
             AdType = content.AdType,
             Title = content.Title,
