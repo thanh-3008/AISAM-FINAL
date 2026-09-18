@@ -43,8 +43,8 @@ public static class PublishingCapabilities
         foreach(var video in media.Where(m=>m.MimeType?.StartsWith("video/")==true))
         {
             if(video.MimeType!="video/legacy"&&!capability.VideoMimeTypes.Contains(video.MimeType!))return "MEDIA_TYPE_UNSUPPORTED";
-            if(video.DurationSeconds is null or <=0)return "MEDIA_METADATA_REQUIRED";
-            if(video.DurationSeconds>capability.MaxVideoDurationSeconds)return "MEDIA_LIMIT_EXCEEDED";
+            if(video.DurationSeconds is null or <=0 || video.SizeBytes is null or <=0)return "MEDIA_METADATA_REQUIRED";
+            if(video.DurationSeconds>capability.MaxVideoDurationSeconds || video.SizeBytes>capability.MaxItemBytes)return "MEDIA_LIMIT_EXCEEDED";
         }
         if(media.Count==0&&!capability.TextOnly||images>1&&!capability.MultiImage||videos>1&&!capability.MultiVideo||images>0&&videos>0&&!capability.MixedMedia)
             return "MEDIA_TYPE_UNSUPPORTED";

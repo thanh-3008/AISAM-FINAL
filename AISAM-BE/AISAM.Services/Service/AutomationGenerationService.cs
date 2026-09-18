@@ -22,6 +22,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
     private readonly ImageProviderSettings _imageSettings;
     private readonly VideoProviderSettings _videoSettings;
     private readonly AISAM.Services.Access.IAccessControlService? _access;
+    private readonly int _automationTimeoutSeconds;
 
     public AutomationGenerationService(
         AisamContext context,
@@ -33,7 +34,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         IOptions<ImageProviderSettings> imageOptions,
         IOptions<VideoProviderSettings> videoOptions,
         ILogger<AutomationGenerationService> logger,
-        AISAM.Services.Access.IAccessControlService? access = null)
+        AISAM.Services.Access.IAccessControlService? access = null,
+        IOptions<AutomationSettings>? automationOptions = null)
     {
         _context = context;
         _textClient = textClient;
@@ -45,6 +47,9 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         _videoSettings = videoOptions.Value;
         _logger = logger;
         _access = access;
+        _automationTimeoutSeconds = automationOptions?.Value?.TimeoutSeconds is > 0
+            ? automationOptions.Value.TimeoutSeconds
+            : 64;
     }
 
     public async Task<TimeSpan> ProcessNextAsync(CancellationToken cancellationToken = default)
@@ -104,6 +109,9 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         var previousSystem = _context.ExecutionIsSystem;
         _context.ExecutionActorId = creatorId;
         _context.ExecutionIsSystem = true;
+        using var itemTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        itemTimeoutCts.CancelAfter(TimeSpan.FromSeconds(_automationTimeoutSeconds));
+        var generationToken = itemTimeoutCts.Token;
         try
         {
             if (!item.BrandId.HasValue || item.BrandId.Value == Guid.Empty)
@@ -164,7 +172,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                 {
                     if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
                         throw new AISAM.Repositories.ResourceMutationDeniedException();
-                    var generatedText = await _textClient.GenerateAsync(textPrompt, cancellationToken);
+                    var generatedText = await _textClient.GenerateAsync(textPrompt, generationToken);
                     if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
                         throw new AISAM.Repositories.ResourceMutationDeniedException();
                     if (string.IsNullOrWhiteSpace(generatedText)) throw new InvalidOperationException("AI returned empty content.");
@@ -196,8 +204,8 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     throw new AISAM.Repositories.ResourceMutationDeniedException();
                 var video = string.IsNullOrWhiteSpace(item.VideoJobId)
                     ? await _videoProvider.StartVideoGenerationAsync(BuildVideoPrompt(item),
-                        new VideoGenerationOptions { DurationSeconds = 4, AspectRatio = "9:16" }, cancellationToken)
-                    : await _videoProvider.CheckStatusAsync(item.VideoJobId, cancellationToken);
+                        new VideoGenerationOptions { DurationSeconds = 4, AspectRatio = "9:16" }, generationToken)
+                    : await _videoProvider.CheckStatusAsync(item.VideoJobId, generationToken);
                 item.VideoProvider = video.ProviderName;
                 if (!video.Success || video.Status == VideoGenerationStatus.Failed)
                     throw new InvalidOperationException(video.ErrorMessage ?? "Video generation failed.");
@@ -213,9 +221,9 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                     throw new InvalidOperationException("Video provider completed without a media URL.");
                 if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
                     throw new AISAM.Repositories.ResourceMutationDeniedException();
-                using (var httpClient = new HttpClient())
+                using (var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(_automationTimeoutSeconds) })
                 {
-                    var videoBytes = await httpClient.GetByteArrayAsync(video.MediaUrl, cancellationToken);
+                    var videoBytes = await httpClient.GetByteArrayAsync(video.MediaUrl, generationToken);
                     content.VideoUrl = await _mediaStorage.UploadBytesAsync(videoBytes, "automation-videos", $"{item.Id:N}.mp4", cancellationToken);
                 }
                 if (item.UsedCredits < 101)
@@ -239,7 +247,7 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
                         {
                             ReferenceImageUrls = SelectProductReferenceImages(item.Product).Select(reference => reference.Url).ToList()
                         },
-                        cancellationToken);
+                        generationToken);
                     if (!media.Success || media.MediaBytes is null)
                         throw new InvalidOperationException(media.ErrorMessage ?? "Image generation failed.");
                     if (!await HasGenerationAccessAsync(item, creatorId.Value, cancellationToken))
@@ -288,6 +296,13 @@ public sealed class AutomationGenerationService : IAutomationGenerationService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (OperationCanceledException) when (itemTimeoutCts.IsCancellationRequested)
+        {
+            var timeoutMessage = $"AI generation timed out after {_automationTimeoutSeconds} seconds.";
+            _logger.LogWarning("AutomationItem {ItemId} timed out during generation after {TimeoutSeconds}s.", item.Id, _automationTimeoutSeconds);
+            await FailAsync(item, timeoutMessage, cancellationToken);
+            return TimeSpan.FromSeconds(5);
         }
         catch (AISAM.Repositories.ResourceMutationDeniedException)
         {

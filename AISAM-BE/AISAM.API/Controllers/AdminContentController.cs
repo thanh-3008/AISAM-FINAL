@@ -1,6 +1,7 @@
 using AISAM.API.Utils;
 using AISAM.Common;
 using AISAM.Common.Dtos;
+using AISAM.Common.Dtos.Response;
 using AISAM.Data.Enumeration;
 using AISAM.Services.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -14,10 +15,21 @@ namespace AISAM.API.Controllers;
 public sealed class AdminContentController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly IContentService _contentService;
 
-    public AdminContentController(IAdminService adminService)
+    public AdminContentController(IAdminService adminService, IContentService contentService)
     {
         _adminService = adminService;
+        _contentService = contentService;
+    }
+
+    [HttpPost("{id:guid}/re-freeze-snapshot")]
+    public async Task<ActionResult<GenericResponse<ContentResponseDto>>> ReFreezeSnapshot(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _contentService.AdminReFreezeSnapshotAsync(id, cancellationToken);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpGet]

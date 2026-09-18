@@ -1,7 +1,7 @@
+using AISAM.Data.Model;
 using Microsoft.AspNetCore.Http;
 
 namespace AISAM.Services.IServices;
-public sealed record StoredMedia(string Url,int? Width=null,int? Height=null,decimal? DurationSeconds=null,string? PublicId=null);
 
 public interface IMediaStorageService
 {
@@ -20,4 +20,15 @@ public interface IMediaStorageService
         string folder,
         string fileName,
         CancellationToken cancellationToken = default);
+
+    async Task<StoredMedia> UploadBytesDetailedAsync(
+        byte[] data,
+        string folder,
+        string fileName,
+        CancellationToken cancellationToken = default)
+        => new(await UploadBytesAsync(data, folder, fileName, cancellationToken));
+
+    Task<StoredMedia?> GetMediaMetadataAsync(
+        string url,
+        CancellationToken cancellationToken = default) => Task.FromResult<StoredMedia?>(null);
 }

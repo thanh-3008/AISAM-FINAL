@@ -135,6 +135,8 @@ ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_BASE_URL", "VideoPr
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TOKEN", "VideoProviderSettings:ColabToken");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_TIMEOUT", "VideoProviderSettings:ColabTimeout");
 ApplyEnvironmentOverride(builder.Configuration, "VIDEO_COLAB_FALLBACK_ENABLED", "VideoProviderSettings:EnableColabFallback");
+ApplyEnvironmentOverride(builder.Configuration, "AI_AUTOMATION_TIMEOUT_SECONDS", "AutomationSettings:TimeoutSeconds");
+ApplyEnvironmentOverride(builder.Configuration, "AUTOMATION_TIMEOUT_SECONDS", "AutomationSettings:TimeoutSeconds");
 ApplyEnvironmentOverride(builder.Configuration, "TAX_LOOKUP_ENDPOINT_TEMPLATE", "TaxLookup:EndpointTemplate");
 
 if (!string.IsNullOrWhiteSpace(connectionString))
@@ -428,6 +430,7 @@ builder.Services.AddScoped<ICampaignInsightsSyncService, CampaignInsightsSyncSer
 
 builder.Services.Configure<ImageProviderSettings>(builder.Configuration.GetSection("ImageProviderSettings"));
 builder.Services.Configure<VideoProviderSettings>(builder.Configuration.GetSection("VideoProviderSettings"));
+builder.Services.Configure<AutomationSettings>(builder.Configuration.GetSection("AutomationSettings"));
 
 // Clients (HttpClient)
 builder.Services.AddHttpClient<OpenAIImageClient>(c => c.Timeout = TimeSpan.FromSeconds(60));

@@ -105,7 +105,8 @@ public sealed class ContentController : ControllerBase
         {
             var extension=await AISAM.Services.Service.ContentMediaService.ValidateFileAsync(file,cancellationToken);
             var fileName=$"{Guid.NewGuid():N}{extension}";
-            url = await _mediaStorageService.UploadAsync(file, $"content/{workspaceId:N}", fileName, cancellationToken);
+            var stored = await _mediaStorageService.UploadDetailedAsync(file, $"content/{workspaceId:N}", fileName, cancellationToken);
+            url = stored.Url;
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {

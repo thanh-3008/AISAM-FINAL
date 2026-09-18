@@ -78,7 +78,7 @@ public class PublishingPipelineTests
     public void MixedMediaRequiresVerifiedInstagram(SocialPlatformEnum platform,bool allowed)
     {
         var integration=new SocialIntegration{Platform=platform,AccessToken="test"};var account=new SocialAccount{UserAccessToken="test",IsActive=true};
-        SnapshotMedia[] media=[new(){MimeType="image/jpeg",Url="https://cdn.test/1"},new(){MimeType="video/mp4",Url="https://cdn.test/2",DurationSeconds=30}];
+        SnapshotMedia[] media=[new(){MimeType="image/jpeg",Url="https://cdn.test/1"},new(){MimeType="video/mp4",Url="https://cdn.test/2",DurationSeconds=30,SizeBytes=10L*1024*1024}];
         Assert.Equal(allowed,PublishingCapabilities.Validate(PublishingCapabilities.For(integration,account,DateTime.UtcNow,true),media) is null);
         Assert.NotNull(PublishingCapabilities.Validate(PublishingCapabilities.For(integration,account,DateTime.UtcNow),media));
     }
@@ -88,8 +88,15 @@ public class PublishingPipelineTests
         var capability=PublishingCapabilities.For(new(){Platform=SocialPlatformEnum.Instagram,AccessToken="test"},new(){UserAccessToken="test",IsActive=true},DateTime.UtcNow);
         var media=new SnapshotMedia{MimeType="video/mp4",Url="https://cdn.test/video"};
         Assert.Equal("MEDIA_METADATA_REQUIRED",PublishingCapabilities.Validate(capability,[media]));
+        media.DurationSeconds=30;
+        // Without SizeBytes, video still fails with MEDIA_METADATA_REQUIRED (closing null-bypass vulnerability)
+        Assert.Equal("MEDIA_METADATA_REQUIRED",PublishingCapabilities.Validate(capability,[media]));
+        media.SizeBytes=10L*1024*1024;
+        Assert.Null(PublishingCapabilities.Validate(capability,[media]));
         media.DurationSeconds=61;Assert.Equal("MEDIA_LIMIT_EXCEEDED",PublishingCapabilities.Validate(capability,[media]));
-        media.DurationSeconds=30;Assert.Null(PublishingCapabilities.Validate(capability,[media]));
+        media.DurationSeconds=30;
+        media.SizeBytes=51L*1024*1024;Assert.Equal("MEDIA_LIMIT_EXCEEDED",PublishingCapabilities.Validate(capability,[media]));
+        media.SizeBytes=10L*1024*1024;
         media.MimeType="video/webm";Assert.Equal("MEDIA_TYPE_UNSUPPORTED",PublishingCapabilities.Validate(capability,[media]));
     }
     [Fact]

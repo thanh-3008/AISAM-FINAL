@@ -1,4 +1,5 @@
 using AISAM.Common.Config;
+using AISAM.Data.Model;
 using AISAM.Services.IServices;
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
@@ -16,9 +17,11 @@ public class CloudinaryMediaStorageService : IMediaStorageService
         return result.Result is "ok" or "not found";
     }
     private readonly Cloudinary _cloudinary;
+    private readonly ILogger<CloudinaryMediaStorageService> _logger;
 
     public CloudinaryMediaStorageService(IOptions<CloudinarySettings> config, ILogger<CloudinaryMediaStorageService> logger)
     {
+        _logger = logger;
         var settings = config.Value;
         var cloudName = settings.CloudName;
         var apiKey = settings.ApiKey;
@@ -139,14 +142,21 @@ public class CloudinaryMediaStorageService : IMediaStorageService
 
             return uploadResult switch
             {
-                VideoUploadResult video=>new(uploadResult.SecureUrl.ToString(),video.Width,video.Height,(decimal)video.Duration,uploadResult.PublicId),
-                ImageUploadResult image=>new(uploadResult.SecureUrl.ToString(),image.Width,image.Height,null,uploadResult.PublicId),
-                _=>new(uploadResult.SecureUrl.ToString(),PublicId:uploadResult.PublicId)
+                VideoUploadResult video=>new(uploadResult.SecureUrl.ToString(),video.Width,video.Height,(decimal)video.Duration,uploadResult.PublicId,video.Bytes),
+                ImageUploadResult image=>new(uploadResult.SecureUrl.ToString(),image.Width,image.Height,null,uploadResult.PublicId,image.Bytes>0?image.Bytes:file.Length),
+                _=>new(uploadResult.SecureUrl.ToString(),PublicId:uploadResult.PublicId,SizeBytes:file.Length)
             };
         }
     }
 
     public async Task<string> UploadBytesAsync(
+        byte[] data,
+        string folder,
+        string fileName,
+        CancellationToken cancellationToken = default)
+        => (await UploadBytesDetailedAsync(data, folder, fileName, cancellationToken)).Url;
+
+    public async Task<StoredMedia> UploadBytesDetailedAsync(
         byte[] data,
         string folder,
         string fileName,
@@ -212,7 +222,54 @@ public class CloudinaryMediaStorageService : IMediaStorageService
                 throw new InvalidOperationException("Cloudinary byte upload returned no URL.");
             }
 
-            return uploadResult.SecureUrl.ToString();
+            return uploadResult switch
+            {
+                VideoUploadResult video => new(uploadResult.SecureUrl.ToString(), video.Width, video.Height, (decimal)video.Duration, uploadResult.PublicId, video.Bytes),
+                ImageUploadResult image => new(uploadResult.SecureUrl.ToString(), image.Width, image.Height, null, uploadResult.PublicId, image.Bytes > 0 ? image.Bytes : (long)data.Length),
+                _ => new(uploadResult.SecureUrl.ToString(), PublicId: uploadResult.PublicId, SizeBytes: data.Length)
+            };
+        }
+    }
+
+    public async Task<StoredMedia?> GetMediaMetadataAsync(string url, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        try
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return null;
+            var path = uri.AbsolutePath;
+            var marker = "/upload/";
+            var idx = path.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return null;
+
+            var afterUpload = path[(idx + marker.Length)..];
+            var segments = afterUpload.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0) return null;
+
+            var publicIdWithExt = string.Join("/", segments.Length > 1 && segments[0].StartsWith("v", StringComparison.OrdinalIgnoreCase) && long.TryParse(segments[0][1..], out _) ? segments.Skip(1) : segments);
+            var publicId = Path.Combine(Path.GetDirectoryName(publicIdWithExt) ?? "", Path.GetFileNameWithoutExtension(publicIdWithExt)).Replace('\\', '/');
+
+            var res = await _cloudinary.GetResourceAsync(new GetResourceParams(publicId)
+            {
+                ResourceType = ResourceType.Video,
+                ImageMetadata = true
+            }, cancellationToken);
+
+            if (res.Error != null || res.JsonObj == null) return null;
+
+            decimal? duration = null;
+            var durStr = res.JsonObj["duration"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(durStr) && decimal.TryParse(durStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedDur))
+            {
+                duration = parsedDur;
+            }
+
+            return new StoredMedia(url, res.Width, res.Height, duration, publicId, res.Bytes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve Cloudinary metadata for URL: {Url}", url);
+            return null;
         }
     }
 }

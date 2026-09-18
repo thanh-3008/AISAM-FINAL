@@ -55,6 +55,7 @@ public sealed class ContentService : IContentService
     private readonly AISAM.Repositories.AisamContext? _context;
     private readonly InstagramSettings _instagram;
     private readonly PublishProgressContext? _progress;
+    private readonly IMediaStorageService? _mediaStorageService;
 
     public ContentService(
         IContentRepository contentRepository,
@@ -72,7 +73,8 @@ public sealed class ContentService : IContentService
         AISAM.Services.Access.IAccessControlService? access = null,
         AISAM.Repositories.AisamContext? context = null,
         Microsoft.Extensions.Options.IOptions<InstagramSettings>? instagram=null,
-        PublishProgressContext? progress=null)
+        PublishProgressContext? progress=null,
+        IMediaStorageService? mediaStorageService = null)
     {
         _contentRepository = contentRepository;
         _brandRepository = brandRepository;
@@ -90,6 +92,7 @@ public sealed class ContentService : IContentService
         _context=context;
         _instagram=instagram?.Value??new();
         _progress=progress;
+        _mediaStorageService = mediaStorageService;
     }
 
     public async Task<GenericResponse<ContentResponseDto>> CreateAsync(Guid profileId, CreateContentRequest request, CancellationToken cancellationToken = default)
@@ -124,6 +127,11 @@ public sealed class ContentService : IContentService
             IsAiGenerated = request.IsAiGenerated,
             Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
+
+        if (content.Status == ContentStatusEnum.PendingApproval)
+        {
+            await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
+        }
 
         await _contentRepository.AddAsync(content, cancellationToken);
         if (content.Status == ContentStatusEnum.PendingApproval)
@@ -160,6 +168,10 @@ public sealed class ContentService : IContentService
             IsAiGenerated = request.IsAiGenerated,
             Tags = request.Tags is { Count: > 0 } ? JsonSerializer.Serialize(request.Tags) : null
         };
+        if (content.Status == ContentStatusEnum.PendingApproval)
+        {
+            await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
+        }
         await _contentRepository.AddAsync(content, cancellationToken);
         if (content.Status == ContentStatusEnum.PendingApproval)
         {
@@ -231,6 +243,10 @@ public sealed class ContentService : IContentService
             if (!statusValidation.Success)
                 return GenericResponse<ContentResponseDto>.CreateError(statusValidation.Message!, (HttpStatusCode)statusValidation.StatusCode);
             content.Status = request.Status.Value;
+            if (content.Status == ContentStatusEnum.PendingApproval || (content.Status == ContentStatusEnum.Approved && !content.SubmittedSnapshotId.HasValue))
+            {
+                await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
+            }
             await _contentRepository.UpdateAsync(content, cancellationToken);
             if (previousStatus != content.Status)
             {
@@ -318,6 +334,8 @@ public sealed class ContentService : IContentService
             return GenericResponse<bool>.CreateError("Only draft or rejected content can be submitted for approval.", HttpStatusCode.BadRequest);
         }
 
+        await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
+
         content.Status = ContentStatusEnum.PendingApproval;
         AddApproval(content, new Approval { ContentId=content.Id, Status=ContentStatusEnum.PendingApproval, SubmittedAt=DateTime.UtcNow });
         await _contentRepository.UpdateAsync(content, cancellationToken);
@@ -360,6 +378,11 @@ public sealed class ContentService : IContentService
         if (content.Status != ContentStatusEnum.PendingApproval)
         {
             return GenericResponse<ContentResponseDto>.CreateError("Only pending approval content can be approved.", HttpStatusCode.BadRequest);
+        }
+
+        if (!content.SubmittedSnapshotId.HasValue)
+        {
+            await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
         }
 
         content.Status = ContentStatusEnum.Approved;
@@ -1105,5 +1128,46 @@ public sealed class ContentService : IContentService
                 return JsonSerializer.Serialize(valid);
         }
         return FormatImageUrlForJsonb(legacyImageUrl);
+    }
+
+    private async Task ResolveAndRegisterMediaMetadataAsync(string? videoUrl, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(videoUrl) || _mediaStorageService is null || _context is null)
+            return;
+
+        try
+        {
+            var meta = await _mediaStorageService.GetMediaMetadataAsync(videoUrl, cancellationToken);
+            if (meta is not null)
+            {
+                _context.RegisterResolvedMediaMetadata(videoUrl, meta);
+            }
+        }
+        catch
+        {
+            // Graceful fallback if remote media storage provider fails or times out
+        }
+    }
+
+    public async Task<GenericResponse<ContentResponseDto>> AdminReFreezeSnapshotAsync(Guid contentId, CancellationToken cancellationToken = default)
+    {
+        if (_context is null)
+            return GenericResponse<ContentResponseDto>.CreateError("Database context not available.", HttpStatusCode.InternalServerError);
+
+        var content = await _context.Contents.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == contentId, cancellationToken);
+        if (content is null)
+            return NotFound();
+
+        await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
+
+        var newSnapshot = await _context.CaptureSnapshotAsync(content, cancellationToken);
+        content.ApprovedSnapshotId = newSnapshot.Id;
+        if (content.Status == ContentStatusEnum.PendingApproval || content.Status == ContentStatusEnum.Approved)
+        {
+            content.SubmittedSnapshotId = newSnapshot.Id;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(content), "Snapshot re-frozen successfully.");
     }
 }

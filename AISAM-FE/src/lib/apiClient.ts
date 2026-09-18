@@ -317,7 +317,7 @@ export async function apiClient(endpoint: string, options: ApiOptions = {}) {
   return handleResponse(response, config);
 }
 
-export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+export async function apiFetch(endpoint: string, options: RequestInit & { timeoutMs?: number; disableFailover?: boolean } = {}) {
   if (isLoggingOut) {
     throw new DOMException("Logout is in progress", "AbortError");
   }
@@ -327,11 +327,12 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     }
   }
   await ensureValidToken();
-  const { headers, token } = await buildHeaders(options.headers as Record<string, string> | undefined);
+  const { timeoutMs, disableFailover, headers: customHeaders, ...restOptions } = options;
+  const { headers, token } = await buildHeaders(customHeaders as Record<string, string> | undefined);
 
-  const config: RequestInit = { ...options, headers, cache: "no-store" };
+  const config: RequestInit = { ...restOptions, headers, cache: "no-store" };
 
-  const response = await fetchWithFailover(endpoint, config);
+  const response = await fetchWithFailover(endpoint, config, { timeoutMs, disableFailover });
   assertWorkspace(config);
 
   if (response.status === 401 && token && !endpoint.includes("/auth/login") && !endpoint.includes("/auth/refresh")) {

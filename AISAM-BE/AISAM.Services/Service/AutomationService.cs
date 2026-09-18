@@ -10,6 +10,7 @@ using AISAM.Data.Enumeration;
 using AISAM.Data.Model;
 using AISAM.Repositories.IRepositories;
 using AISAM.Services.IServices;
+using Microsoft.Extensions.Options;
 
 namespace AISAM.Services.Service;
 
@@ -22,13 +23,24 @@ public sealed class AutomationService : IAutomationService
     private readonly IAutomationCreditService _automationCredits;
     private readonly AISAM.Services.Access.IAccessControlService? _access;
     private readonly AISAM.Repositories.AisamContext? _context;
+    private readonly int _timeoutSeconds;
 
-    public AutomationService(IAutomationRepository automationRepository, IBrandRepository brandRepository, IProductRepository productRepository, IAutomationCreditService automationCredits, AISAM.Services.Access.IAccessControlService? access=null, AISAM.Repositories.AisamContext? context=null)
+    public AutomationService(
+        IAutomationRepository automationRepository,
+        IBrandRepository brandRepository,
+        IProductRepository productRepository,
+        IAutomationCreditService automationCredits,
+        AISAM.Services.Access.IAccessControlService? access = null,
+        AISAM.Repositories.AisamContext? context = null,
+        IOptions<AutomationSettings>? automationOptions = null)
     {
         _automationRepository = automationRepository;
         _brandRepository = brandRepository;
         _productRepository = productRepository;
-        _automationCredits = automationCredits; _access=access; _context=context;
+        _automationCredits = automationCredits;
+        _access = access;
+        _context = context;
+        _timeoutSeconds = automationOptions?.Value?.TimeoutSeconds is > 0 ? automationOptions.Value.TimeoutSeconds : 64;
     }
 
     public async Task<GenericResponse<AutomationPlanDto>> CreateAsync(Guid workspaceId, Guid profileId, Guid actorUserId, CreateAutomationPlanRequest request, string? sourceFileName = null, CancellationToken cancellationToken = default)
@@ -258,7 +270,7 @@ public sealed class AutomationService : IAutomationService
         var exportUrl = $"https://docs.google.com/spreadsheets/d/{Uri.EscapeDataString(segments[sheetIndex + 1])}/export?format=csv&gid={Uri.EscapeDataString(gid)}";
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(_timeoutSeconds) };
             await using var stream = await client.GetStreamAsync(exportUrl, cancellationToken);
             return await ImportCsvAsync(workspaceId, profileId, actorUserId, request.Name, request.Timezone, "google-sheet.csv", stream, cancellationToken);
         }
