@@ -704,7 +704,11 @@ export default function ContentDetailPage() {
                         placeholder="Write a caption..."
                       />
                     ) : (
-                      <p className="text-body-sm text-on-surface leading-relaxed whitespace-pre-line">{item.caption || item.textContent}</p>
+                      <RichTextPreview
+                        content={item.caption || item.textContent || ""}
+                        richTextJson={item.richTextJson}
+                        className="text-body-sm text-on-surface leading-relaxed"
+                      />
                     )}
                   </div>
                 )}

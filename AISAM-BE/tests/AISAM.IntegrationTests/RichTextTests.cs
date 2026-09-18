@@ -21,6 +21,19 @@ public class RichTextTests
         Assert.All(RichTextDocument.FormatCaptions(plain).Values, caption => Assert.Equal(plain, caption));
     }
 
+    [Fact]
+    public void FacebookCaptionUsesUnicodeForSupportedRichTextMarks()
+    {
+        const string document = """
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Bold 12","marks":[{"type":"bold"}]},{"type":"text","text":" Việt","marks":[{"type":"italic"}]},{"type":"text","text":" Both","marks":[{"type":"bold"},{"type":"italic"}]},{"type":"text","text":" Ấn","marks":[{"type":"underline"}]}]}]}
+            """;
+        var plain = RichTextDocument.PlainText(document, 1);
+        var captions = RichTextDocument.FormatCaptions(plain, document, 1);
+
+        Assert.Equal("𝗕𝗼𝗹𝗱 𝟭𝟮 𝘝𝘪ệ𝘵 𝘽𝙤𝙩𝙝 Ấ̲n̲", captions["facebook"]);
+        Assert.Equal(plain, captions["instagram"]);
+    }
+
     [Theory]
     [InlineData("javascript:alert(1)")]
     [InlineData("data:text/html,test")]

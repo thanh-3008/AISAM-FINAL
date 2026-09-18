@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, type ReactNode } from "react";
-import { readDocument, safeLink, formatCaption, type RichNode } from "@/lib/richTextDocument";
+import { readDocument, safeLink, type RichNode } from "@/lib/richTextDocument";
 
 function render(node: RichNode, depth = 0): ReactNode {
   if (depth > 32) return null;
@@ -37,7 +37,7 @@ function render(node: RichNode, depth = 0): ReactNode {
 export default function RichTextPreview({ content, richTextJson, platform, className = "" }:
   { content: string; richTextJson?: string | null; platform?: string; className?: string }) {
   const document = readDocument(richTextJson, content);
-  return <div className={`rich-text-preview whitespace-pre-wrap ${className}`}>
-    {platform ? formatCaption(document, platform).text : render(document)}
+  return <div data-platform={platform || undefined} className={`rich-text-preview whitespace-pre-wrap ${className}`}>
+    {render(document)}
   </div>;
 }

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AISAM.Data;
@@ -12,13 +13,13 @@ public static class RichTextDocument
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 32 });
             var count = 0;
-            return Render(document.RootElement, "root", ref count);
+            return Render(document.RootElement, "root", ref count, false);
         }
         catch (JsonException) { throw new ArgumentException("RICH_TEXT_INVALID_JSON"); }
         catch (InvalidOperationException) { throw new ArgumentException("RICH_TEXT_INVALID_SHAPE"); }
     }
 
-    private static string Render(JsonElement node, string parent, ref int count)
+    private static string Render(JsonElement node, string parent, ref int count, bool formatForFacebook)
     {
         if (++count > 5000 || node.ValueKind != JsonValueKind.Object ||
             !node.TryGetProperty("type", out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
@@ -50,6 +51,10 @@ public static class RichTextDocument
             if (!node.TryGetProperty("text", out var text) || text.ValueKind != JsonValueKind.String || node.TryGetProperty("content", out _))
                 throw new ArgumentException("RICH_TEXT_INVALID_TEXT");
             var result = text.GetString()!;
+            string? linkSuffix = null;
+            var bold = false;
+            var italic = false;
+            var underline = false;
             if (node.TryGetProperty("marks", out var marks))
             {
                 if (marks.ValueKind != JsonValueKind.Array || marks.GetArrayLength() > 6) throw new ArgumentException("RICH_TEXT_INVALID_MARKS");
@@ -68,11 +73,15 @@ public static class RichTextDocument
                             throw new ArgumentException("RICH_TEXT_UNSAFE_LINK");
                         foreach (var attribute in link.EnumerateObject())
                             if (attribute.Name is not ("href" or "target" or "rel" or "class" or "title")) throw new ArgumentException("RICH_TEXT_INVALID_LINK_ATTRIBUTES");
-                        if (result != href.GetString()) result += $" ({href.GetString()})";
+                        if (result != href.GetString()) linkSuffix = $" ({href.GetString()})";
                     }
+                    bold |= markType.GetString() == "bold";
+                    italic |= markType.GetString() == "italic";
+                    underline |= markType.GetString() == "underline";
                 }
             }
-            return result;
+            var formatted = formatForFacebook ? FormatFacebookText(result, bold, italic, underline) : result;
+            return formatted + linkSuffix;
         }
         if (type == "hardBreak")
         {
@@ -84,7 +93,7 @@ public static class RichTextDocument
         if (node.TryGetProperty("content", out var content))
         {
             if (content.ValueKind != JsonValueKind.Array) throw new ArgumentException("RICH_TEXT_INVALID_CONTENT");
-            foreach (var child in content.EnumerateArray()) children.Add(Render(child, type, ref count));
+            foreach (var child in content.EnumerateArray()) children.Add(Render(child, type, ref count, formatForFacebook));
         }
         var first = type == "orderedList" && attrs.ValueKind == JsonValueKind.Object && attrs.TryGetProperty("start", out var ordinal) ? ordinal.GetInt32() : 1;
         return type switch
@@ -101,7 +110,53 @@ public static class RichTextDocument
         !value.Any(char.IsControl) && Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
         (uri.Scheme is "http" or "https" or "mailto");
 
-    // All current social caption contracts use plain text; marks stay in the editor.
-    public static Dictionary<string, string> FormatCaptions(string plainText) => new()
-    { ["facebook"] = plainText, ["instagram"] = plainText, ["tiktok"] = plainText, ["google"] = plainText };
+    public static Dictionary<string, string> FormatCaptions(string plainText, string? richTextJson = null, int? version = null) => new()
+    {
+        ["facebook"] = richTextJson is null ? plainText : FacebookText(richTextJson, version),
+        ["instagram"] = plainText,
+        ["tiktok"] = plainText,
+        ["google"] = plainText
+    };
+
+    private static string FacebookText(string json, int? version)
+    {
+        if (version != Version || json.Length > 200_000) throw new ArgumentException("RICH_TEXT_INVALID_VERSION_OR_SIZE");
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 32 });
+            var count = 0;
+            return Render(document.RootElement, "root", ref count, true);
+        }
+        catch (JsonException) { throw new ArgumentException("RICH_TEXT_INVALID_JSON"); }
+        catch (InvalidOperationException) { throw new ArgumentException("RICH_TEXT_INVALID_SHAPE"); }
+    }
+
+    private static string FormatFacebookText(string value, bool bold, bool italic, bool underline)
+    {
+        if (!bold && !italic && !underline) return value;
+        var result = new StringBuilder(value.Length * (underline ? 2 : 1));
+        foreach (var rune in value.EnumerateRunes())
+        {
+            result.Append(StyleAsciiRune(rune.Value, bold, italic));
+            if (underline && !Rune.IsWhiteSpace(rune)) result.Append('\u0332');
+        }
+        return result.ToString();
+    }
+
+    private static string StyleAsciiRune(int value, bool bold, bool italic)
+    {
+        if (value is >= 'A' and <= 'Z')
+        {
+            var start = bold && italic ? 0x1D63C : bold ? 0x1D5D4 : italic ? 0x1D608 : 0;
+            if (start != 0) return char.ConvertFromUtf32(start + value - 'A');
+        }
+        if (value is >= 'a' and <= 'z')
+        {
+            var start = bold && italic ? 0x1D656 : bold ? 0x1D5EE : italic ? 0x1D622 : 0;
+            if (start != 0) return char.ConvertFromUtf32(start + value - 'a');
+        }
+        if (bold && value is >= '0' and <= '9')
+            return char.ConvertFromUtf32(0x1D7EC + value - '0');
+        return char.ConvertFromUtf32(value);
+    }
 }

@@ -3,6 +3,7 @@
 import { PostItem } from "@/services/postService";
 import { formatDate, getStatusStyle } from "@/lib/postUtils";
 import { PLATFORM_CONFIG, PlatformIcon, CONTENT_TYPES } from "@/lib/contentConstants";
+import RichTextPreview from "@/components/content/RichTextPreview";
 
 interface PostRowProps {
   post: PostItem;
@@ -92,7 +93,7 @@ export default function PostRow({
           <div className="min-w-0 max-w-[280px]">
             <p className="text-body-sm font-semibold text-on-surface truncate">{post.contentTitle || "Untitled"}</p>
             {post.caption && (
-              <p className="text-label-xs text-outline line-clamp-1 mt-0.5">{post.caption}</p>
+              <RichTextPreview content={post.caption} richTextJson={post.richTextJson} className="text-label-xs text-outline line-clamp-1 mt-0.5" />
             )}
           </div>
         </div>

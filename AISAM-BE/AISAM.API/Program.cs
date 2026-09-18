@@ -605,7 +605,8 @@ static string BuildDatabaseConnectionString(string connectionString)
 
     if (!configuredMaxPoolSize)
     {
-        var maxPoolSize = 10;
+        // Leave capacity for other application instances and Supabase services.
+        var maxPoolSize = 5;
         var envMaxPoolSize = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
         if (int.TryParse(envMaxPoolSize, out var parsedMaxPoolSize) && parsedMaxPoolSize > 0)
         {

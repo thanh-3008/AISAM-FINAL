@@ -13,6 +13,83 @@ export function safeLink(value: string): boolean {
 export function plainDocument(text: string): RichNode {
   return { type: "doc", content: text.split("\n").map(line => ({ type: "paragraph", content: line ? [{ type: "text", text: line }] : [] })) };
 }
+
+const INLINE_MARKERS = [
+  { marker: "**", type: "bold" },
+  { marker: "__", type: "underline" },
+  { marker: "~~", type: "strike" },
+  { marker: "*", type: "italic" },
+] as const;
+
+function markdownInline(text: string): RichNode[] {
+  const nodes: RichNode[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    let next: { start: number; end: number; marker: string; type: string } | null = null;
+    for (const definition of INLINE_MARKERS) {
+      const start = text.indexOf(definition.marker, cursor);
+      if (start < 0) continue;
+      const end = text.indexOf(definition.marker, start + definition.marker.length);
+      if (end <= start + definition.marker.length) continue;
+      if (!next || start < next.start || (start === next.start && definition.marker.length > next.marker.length)) {
+        next = { start, end, ...definition };
+      }
+    }
+
+    if (!next) {
+      nodes.push({ type: "text", text: text.slice(cursor) });
+      break;
+    }
+    if (next.start > cursor) nodes.push({ type: "text", text: text.slice(cursor, next.start) });
+    nodes.push({
+      type: "text",
+      text: text.slice(next.start + next.marker.length, next.end),
+      marks: [{ type: next.type }],
+    });
+    cursor = next.end + next.marker.length;
+  }
+
+  return nodes.filter(node => node.text !== "");
+}
+
+/** Convert the limited Markdown emitted by AI into the editor's versioned document. */
+export function markdownDocument(markdown: string): RichNode {
+  const content: RichNode[] = [];
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const bullet = line.match(/^\s*[-+]\s+(.+)$/);
+    const ordered = line.match(/^\s*(\d+)\.\s+(.+)$/);
+    if (bullet || ordered) {
+      const orderedStart = ordered ? Number(ordered[1]) : 1;
+      const items: RichNode[] = [];
+      while (index < lines.length) {
+        const match = ordered
+          ? lines[index].match(/^\s*\d+\.\s+(.+)$/)
+          : lines[index].match(/^\s*[-+]\s+(.+)$/);
+        if (!match) break;
+        const value = ordered ? match[1].replace(/^\d+\.\s+/, "") : match[1];
+        items.push({ type: "listItem", content: [{ type: "paragraph", content: markdownInline(value) }] });
+        index += 1;
+      }
+      content.push({ type: ordered ? "orderedList" : "bulletList", attrs: ordered ? { start: orderedStart } : undefined, content: items });
+      continue;
+    }
+
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    content.push({
+      type: heading ? "heading" : "paragraph",
+      attrs: heading ? { level: Math.min(3, line.match(/^#+/)?.[0].length ?? 1) } : undefined,
+      content: markdownInline(heading?.[1] ?? line),
+    });
+    index += 1;
+  }
+
+  return { type: "doc", content };
+}
 export function readDocument(json: string | null | undefined, text: string): RichNode {
   if (json) try { const value = JSON.parse(json); if (value.type === "doc") return value; } catch { /* preserve fallback */ }
   // Legacy text is literal, never interpreted as HTML or guessed Markdown.

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace AISAM.Services.Service;
 
@@ -26,6 +27,7 @@ public sealed class VideoPollingBackgroundService : BackgroundService
     {
         _logger.LogInformation("[VideoPolling] Background service STARTED.");
 
+        var consecutiveDatabaseFailures = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
             var hasJobs = false;
@@ -48,6 +50,7 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                     .ToListAsync(stoppingToken);
 
                 hasJobs = pendingJobs.Count > 0;
+                consecutiveDatabaseFailures = 0;
 
                 _logger.LogInformation("[VideoPolling] Found {Count} pending/sync-needed video jobs.", pendingJobs.Count);
 
@@ -138,6 +141,17 @@ public sealed class VideoPollingBackgroundService : BackgroundService
                     }
                 }
             }
+            catch (NpgsqlException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (NpgsqlException ex)
+            {
+                consecutiveDatabaseFailures++;
+                _logger.LogWarning(ex,
+                    "[VideoPolling] Database connection failed (attempt {Attempt}); polling will back off.",
+                    consecutiveDatabaseFailures);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[VideoPolling] Error occurred during video polling iteration.");
@@ -146,6 +160,8 @@ public sealed class VideoPollingBackgroundService : BackgroundService
             try
             {
                 var delaySeconds = hasJobs ? 45 : 120; // Tăng delay lên 45s để tránh DeAPI rate limit
+                if (consecutiveDatabaseFailures > 0)
+                    delaySeconds = Math.Min(30 * (1 << Math.Min(consecutiveDatabaseFailures - 1, 3)), 300);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
             }
             catch (OperationCanceledException)

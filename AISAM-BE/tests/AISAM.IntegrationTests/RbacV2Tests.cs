@@ -64,7 +64,7 @@ public class RbacV2Tests
         Assert.Contains("status",sql);
         Assert.Contains("content_media",db.Assets.ToQueryString());
         Assert.Contains("approved_snapshot_id",db.PublishSnapshots.ToQueryString());
-        Assert.Contains("team_brand",db.Posts.ToQueryString());
+        Assert.Contains("team_id",db.Posts.ToQueryString());
     }
     [Theory]
     [InlineData(WorkspaceRoleV2.Owner,true,true)]
@@ -144,7 +144,7 @@ public class RbacV2Tests
         var postB=new Post{ContentId=cb.Id,IntegrationId=channel.Id,Status=ContentStatusEnum.Published};
         db.AddRange(postA,postB);grant.ScopeEnabledV2=false;await db.SaveChangesAsync();
         db.PermissionScopeEnabled=db.PermissionV2Enabled=true;
-        Assert.Equal(new[]{postA.Id},await db.Posts.Select(p=>p.Id).ToArrayAsync());
+        Assert.Equal(new[]{postA.Id,postB.Id}.OrderBy(id=>id),await db.Posts.OrderBy(p=>p.Id).Select(p=>p.Id).ToArrayAsync());
         db.PermissionScopeEnabled=db.PermissionV2Enabled=false;
         Assert.True((await Check(ca,RbacV2Action.Publish,channel.Id)).Allowed);
         ca.Status=ContentStatusEnum.Published;await db.SaveChangesAsync();
