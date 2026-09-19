@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import RbacBrandAccess from "@/components/brands/RbacBrandAccess";
@@ -18,7 +18,7 @@ it("sends only the v2 channel scope revision and does not report success on conf
   expect((await screen.findByRole("alert")).textContent).toContain("Revision conflict");
   await waitFor(() => expect(apiClient).toHaveBeenLastCalledWith("/brands/brand/channels/channel/teams/team", { method: "PUT", data: { expectedRevision: "r1" } }));
   expect((checkbox as HTMLInputElement).checked).toBe(false);
-  expect(screen.queryByText("Đã lưu quyền truy cập.")).toBeNull();
+  expect(screen.queryByText("Channel permissions updated.")).toBeNull();
 });
 it("does not fetch assignments for a workspace Member", () => {
   render(<RbacContext.Provider value={{ ...context, workspaceRole: "Member", actions: [] }}><RbacBrandAccess brandId="brand" /></RbacContext.Provider>);

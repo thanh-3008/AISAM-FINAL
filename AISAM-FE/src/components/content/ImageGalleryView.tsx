@@ -28,7 +28,7 @@ export default function ImageGalleryView({
           <div className="w-14 h-14 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
             <span className="material-symbols-outlined text-[28px]">image</span>
           </div>
-          <p className="text-body-sm text-outline font-medium">Chưa có ảnh nào được tải lên</p>
+          <p className="text-body-sm text-outline font-medium">No images uploaded yet</p>
         </div>
       </div>
     );
@@ -54,7 +54,7 @@ export default function ImageGalleryView({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={currentUrl}
-          alt={title || `Ảnh ${safeIndex + 1}`}
+          alt={title || `Image ${safeIndex + 1}`}
           className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.01]"
         />
 
@@ -62,7 +62,7 @@ export default function ImageGalleryView({
         {showCoverBadge && safeIndex === 0 && (
           <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-primary text-on-primary text-label-xs font-bold shadow-md flex items-center gap-1 backdrop-blur-xs">
             <span className="material-symbols-outlined text-[14px]">star</span>
-            Ảnh bìa
+            Cover
           </div>
         )}
 
@@ -77,7 +77,7 @@ export default function ImageGalleryView({
         {/* Expand / Lightbox hint button */}
         <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-md text-white text-label-xs font-medium shadow-lg hover:bg-black/85">
           <span className="material-symbols-outlined text-[16px]">fullscreen</span>
-          <span>Phóng to</span>
+          <span>Enlarge</span>
         </div>
 
         {/* Previous button overlay */}
@@ -89,7 +89,7 @@ export default function ImageGalleryView({
               setActiveIndex((prev) => (prev - 1 + images.length) % images.length);
             }}
             className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 shadow-md"
-            title="Ảnh trước"
+            title="Previous image"
           >
             <span className="material-symbols-outlined text-[20px]">chevron_left</span>
           </button>
@@ -104,7 +104,7 @@ export default function ImageGalleryView({
               setActiveIndex((prev) => (prev + 1) % images.length);
             }}
             className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 shadow-md"
-            title="Ảnh tiếp theo"
+            title="Next image"
           >
             <span className="material-symbols-outlined text-[20px]">chevron_right</span>
           </button>
@@ -117,14 +117,14 @@ export default function ImageGalleryView({
           <div className="flex items-center justify-between px-1 text-label-xs text-outline">
             <span className="flex items-center gap-1 font-medium">
               <span className="material-symbols-outlined text-[14px]">collections</span>
-              Tất cả ảnh đã upload ({images.length})
+              All uploaded images ({images.length})
             </span>
             <button
               type="button"
               onClick={() => setIsLightboxOpen(true)}
               className="text-primary hover:underline flex items-center gap-0.5 font-semibold"
             >
-              Xem toàn màn hình
+              View full screen
               <span className="material-symbols-outlined text-[14px]">open_in_full</span>
             </button>
           </div>
@@ -156,7 +156,7 @@ export default function ImageGalleryView({
                 {/* Cover label on first thumbnail */}
                 {showCoverBadge && idx === 0 && (
                   <span className="absolute bottom-1 left-1 px-1 py-0.2 rounded bg-primary text-on-primary text-[8px] font-bold leading-tight">
-                    Bìa
+                    Cover
                   </span>
                 )}
               </button>

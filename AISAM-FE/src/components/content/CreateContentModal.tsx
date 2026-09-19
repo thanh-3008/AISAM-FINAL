@@ -211,7 +211,7 @@ export function CreateContentModal({ onClose }: CreateContentModalProps) {
                       
                       <input
                         type="text"
-                        placeholder="e.g. Kỷ niệm 5 năm..."
+                        placeholder="e.g. 5th Anniversary..."
                         value={customEventName}
                         onChange={(e) => { setCustomEventName(e.target.value); setSelectedHolidayId(null); }}
                         onClick={(e) => e.stopPropagation()}

@@ -362,7 +362,7 @@ export default function BrandDetailPage() {
                     className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2 text-label-sm font-semibold text-primary transition-all hover:bg-primary/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                   >
                     <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
-                    Team &amp; quyền kênh
+                    Teams &amp; channel permissions
                   </Link>
                 )}
                 <button onClick={() => router.push("/social")} className="px-4 py-2 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-2">

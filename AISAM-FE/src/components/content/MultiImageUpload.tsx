@@ -296,7 +296,7 @@ export default function MultiImageUpload({
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setLightboxIndex(index); }}
                   className="w-6 h-6 rounded-md bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all"
-                  title="Xem ảnh phóng to"
+                  title="Enlarge image"
                 >
                   <span className="material-symbols-outlined text-[12px]">fullscreen</span>
                 </button>
@@ -391,7 +391,7 @@ export default function MultiImageUpload({
           initialIndex={lightboxIndex}
           isOpen={lightboxIndex !== null}
           onClose={() => setLightboxIndex(null)}
-          title="Ảnh đã tải lên"
+          title="Uploaded image"
         />
       )}
     </div>

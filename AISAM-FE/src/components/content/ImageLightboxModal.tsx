@@ -84,10 +84,10 @@ export default function ImageLightboxModal({
           <span className="material-symbols-outlined text-[24px] text-primary">photo_library</span>
           <div className="min-w-0">
             <h3 className="text-body-sm font-semibold truncate max-w-md">
-              {title || "Xem ảnh"}
+              {title || "View image"}
             </h3>
             <p className="text-label-xs text-white/60">
-              Ảnh {currentIndex + 1} / {images.length}
+              Image {currentIndex + 1} / {images.length}
             </p>
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function ImageLightboxModal({
               onClick={() => setZoomLevel((z) => Math.max(1, z - 0.25))}
               disabled={zoomLevel <= 1}
               className="p-1.5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white disabled:opacity-30 transition-all"
-              title="Thu nhỏ (-)"
+              title="Zoom out (-)"
             >
               <span className="material-symbols-outlined text-[18px]">zoom_out</span>
             </button>
@@ -111,7 +111,7 @@ export default function ImageLightboxModal({
               onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
               disabled={zoomLevel >= 3}
               className="p-1.5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white disabled:opacity-30 transition-all"
-              title="Phóng to (+)"
+              title="Zoom in (+)"
             >
               <span className="material-symbols-outlined text-[18px]">zoom_in</span>
             </button>
@@ -119,7 +119,7 @@ export default function ImageLightboxModal({
               <button
                 onClick={() => setZoomLevel(1)}
                 className="p-1.5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition-all ml-1 text-label-2xs font-semibold"
-                title="Về 100%"
+                title="Reset to 100%"
               >
                 1:1
               </button>
@@ -130,7 +130,7 @@ export default function ImageLightboxModal({
           <button
             onClick={() => setRotation((r) => (r + 90) % 360)}
             className="p-2 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition-all border border-white/10"
-            title="Xoay ảnh"
+            title="Rotate image"
           >
             <span className="material-symbols-outlined text-[20px]">rotate_right</span>
           </button>
@@ -141,7 +141,7 @@ export default function ImageLightboxModal({
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition-all border border-white/10"
-            title="Mở ảnh gốc trong tab mới"
+            title="Open original in new tab"
             onClick={(e) => e.stopPropagation()}
           >
             <span className="material-symbols-outlined text-[20px]">open_in_new</span>
@@ -151,7 +151,7 @@ export default function ImageLightboxModal({
           <button
             onClick={onClose}
             className="p-2 hover:bg-red-500/30 rounded-xl text-white/80 hover:text-red-300 transition-all border border-white/10"
-            title="Đóng (Esc)"
+            title="Close (Esc)"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -171,7 +171,7 @@ export default function ImageLightboxModal({
               handlePrev();
             }}
             className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center border border-white/20 transition-all z-20 hover:scale-110 active:scale-95"
-            title="Ảnh trước (Mũi tên trái)"
+            title="Previous image (Left arrow)"
           >
             <span className="material-symbols-outlined text-[26px]">chevron_left</span>
           </button>
@@ -188,7 +188,7 @@ export default function ImageLightboxModal({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentImage}
-            alt={title || `Ảnh ${currentIndex + 1}`}
+            alt={title || `Image ${currentIndex + 1}`}
             className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl transition-all cursor-zoom-in"
             onClick={() => setZoomLevel((z) => (z === 1 ? 2 : 1))}
             draggable={false}
@@ -203,7 +203,7 @@ export default function ImageLightboxModal({
               handleNext();
             }}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center border border-white/20 transition-all z-20 hover:scale-110 active:scale-95"
-            title="Ảnh tiếp theo (Mũi tên phải)"
+            title="Next image (Right arrow)"
           >
             <span className="material-symbols-outlined text-[26px]">chevron_right</span>
           </button>

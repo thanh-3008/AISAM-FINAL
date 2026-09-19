@@ -326,7 +326,7 @@ export default function CreateContentPage() {
                     Saving...
                   </span>
                 ) : (
-                  <><span className="material-symbols-outlined text-[16px]">check</span> Lưu draft và mở composer</>
+                  <><span className="material-symbols-outlined text-[16px]">check</span> Save draft and open composer</>
                 )}
               </button>
             </div>

@@ -83,7 +83,7 @@ it("does not report a server failure as revoked workspace access", async () => {
 
   expect(await screen.findByText("Permission service unavailable")).not.toBeNull();
   expect(screen.getByLabelText("draft")).not.toBeNull();
-  expect(screen.queryByText("Không thể truy cập workspace")).toBeNull();
+  expect(screen.queryByText("Unable to access workspace")).toBeNull();
 });
 it("recovers when the first contract is invalid and the retry has the same revision", async () => {
   vi.mocked(apiClient)
@@ -105,7 +105,7 @@ it("escapes the loading screen when permission loading never settles", async () 
 
   await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
 
-  expect(screen.getByText("Kiểm tra quyền quá thời gian. Vui lòng thử lại.")).not.toBeNull();
+  expect(screen.getByText("Permission verification timed out. Please try again.")).not.toBeNull();
   expect(screen.getByLabelText("draft")).not.toBeNull();
 });
 it("clears page state on workspace change and hides it on denied access", async () => {
@@ -117,7 +117,7 @@ it("clears page state on workspace change and hides it on denied access", async 
   expect((screen.getByLabelText("draft") as HTMLInputElement).value).toBe("");
   act(() => window.dispatchEvent(new Event("aisam-access-denied")));
   expect(screen.queryByLabelText("draft")).toBeNull();
-  expect(screen.getByRole("alert").textContent).toContain("Bạn vẫn đang đăng nhập");
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại quyền" })));
+  expect(screen.getByRole("alert").textContent).toContain("You are still signed in");
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Re-verify permissions" })));
   expect((screen.getByLabelText("draft") as HTMLInputElement).value).toBe("");
 });

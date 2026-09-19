@@ -50,7 +50,7 @@ export default function MixedMediaGallery({ videoUrl, images, title, onImagesCha
     <div className="group relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-black">
       {active.type === "video"
         ? <video key={active.url} src={active.url} controls className="h-full w-full object-contain" />
-        : <img src={active.url} alt={title || `Ảnh ${activeIndex}`} className="h-full w-full object-contain" />}
+        : <img src={active.url} alt={title || `Image ${activeIndex}`} className="h-full w-full object-contain" />}
 
       <>
         <button type="button" aria-label="Previous media" disabled={items.length < 2} onClick={() => select(activeIndex - 1)} className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-md transition-colors hover:bg-black/80 disabled:cursor-default disabled:opacity-35">

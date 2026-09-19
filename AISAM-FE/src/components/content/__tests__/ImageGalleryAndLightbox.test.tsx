@@ -53,14 +53,14 @@ describe("ImageGalleryView Component", () => {
   ];
 
   it("renders cover badge and thumbnail strip for multi-image gallery", () => {
-    const { getByText, getByAltText } = render(
+    const { getByText, getAllByText, getByAltText } = render(
       <ImageGalleryView images={sampleImages} title="Test Post" />
     );
 
-    expect(getByText("Ảnh bìa")).toBeTruthy();
+    expect(getAllByText("Cover").length).toBeGreaterThan(0);
     expect(getByText("1 / 3")).toBeTruthy();
     expect(getByAltText("Test Post")).toBeTruthy();
-    expect(getByText("Tất cả ảnh đã upload (3)")).toBeTruthy();
+    expect(getByText("All uploaded images (3)")).toBeTruthy();
   });
 
   it("navigates between images with next and prev buttons", () => {
@@ -68,11 +68,11 @@ describe("ImageGalleryView Component", () => {
       <ImageGalleryView images={sampleImages} title="Test Post" />
     );
 
-    const nextBtn = getByTitle("Ảnh tiếp theo");
+    const nextBtn = getByTitle("Next image");
     fireEvent.click(nextBtn);
     expect(getByText("2 / 3")).toBeTruthy();
 
-    const prevBtn = getByTitle("Ảnh trước");
+    const prevBtn = getByTitle("Previous image");
     fireEvent.click(prevBtn);
     expect(getByText("1 / 3")).toBeTruthy();
   });
@@ -82,11 +82,11 @@ describe("ImageGalleryView Component", () => {
       <ImageGalleryView images={sampleImages} title="Test Post" />
     );
 
-    const fullscreenBtn = getByText("Xem toàn màn hình");
+    const fullscreenBtn = getByText("View full screen");
     fireEvent.click(fullscreenBtn);
 
     // Lightbox header counter
-    expect(getByText("Ảnh 1 / 3")).toBeTruthy();
+    expect(getByText("Image 1 / 3")).toBeTruthy();
   });
 });
 
@@ -108,7 +108,7 @@ describe("ImageLightboxModal Component", () => {
       />
     );
 
-    const closeBtn = getByTitle("Đóng (Esc)");
+    const closeBtn = getByTitle("Close (Esc)");
     fireEvent.click(closeBtn);
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
@@ -123,8 +123,8 @@ describe("ImageLightboxModal Component", () => {
       />
     );
 
-    const zoomInBtn = getByTitle("Phóng to (+)");
+    const zoomInBtn = getByTitle("Zoom in (+)");
     fireEvent.click(zoomInBtn);
-    expect(getByTitle("Thu nhỏ (-)")).toBeTruthy();
+    expect(getByTitle("Zoom out (-)")).toBeTruthy();
   });
 });

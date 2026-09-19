@@ -55,6 +55,7 @@ public static class RichTextDocument
             var bold = false;
             var italic = false;
             var underline = false;
+            var strike = false;
             if (node.TryGetProperty("marks", out var marks))
             {
                 if (marks.ValueKind != JsonValueKind.Array || marks.GetArrayLength() > 6) throw new ArgumentException("RICH_TEXT_INVALID_MARKS");
@@ -78,9 +79,10 @@ public static class RichTextDocument
                     bold |= markType.GetString() == "bold";
                     italic |= markType.GetString() == "italic";
                     underline |= markType.GetString() == "underline";
+                    strike |= markType.GetString() == "strike";
                 }
             }
-            var formatted = formatForFacebook ? FormatFacebookText(result, bold, italic, underline) : result;
+            var formatted = formatForFacebook ? FormatFacebookText(result, bold, italic, underline, strike) : result;
             return formatted + linkSuffix;
         }
         if (type == "hardBreak")
@@ -131,14 +133,16 @@ public static class RichTextDocument
         catch (InvalidOperationException) { throw new ArgumentException("RICH_TEXT_INVALID_SHAPE"); }
     }
 
-    private static string FormatFacebookText(string value, bool bold, bool italic, bool underline)
+    private static string FormatFacebookText(string value, bool bold, bool italic, bool underline, bool strike)
     {
-        if (!bold && !italic && !underline) return value;
-        var result = new StringBuilder(value.Length * (underline ? 2 : 1));
+        if (!bold && !italic && !underline && !strike) return value;
+        var multiplier = 1 + (underline ? 1 : 0) + (strike ? 1 : 0);
+        var result = new StringBuilder(value.Length * multiplier);
         foreach (var rune in value.EnumerateRunes())
         {
             result.Append(StyleAsciiRune(rune.Value, bold, italic));
             if (underline && !Rune.IsWhiteSpace(rune)) result.Append('\u0332');
+            if (strike && !Rune.IsWhiteSpace(rune)) result.Append('\u0336');
         }
         return result.ToString();
     }

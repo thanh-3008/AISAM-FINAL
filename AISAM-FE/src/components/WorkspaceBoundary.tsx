@@ -28,7 +28,7 @@ export default function WorkspaceBoundary({ children }: { children: React.ReactN
       const timeout = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
           controller.abort();
-          reject(new Error("Kiểm tra quyền quá thời gian. Vui lòng thử lại."));
+          reject(new Error("Permission verification timed out. Please try again."));
         }, 10000);
       });
       return Promise.race([
@@ -107,7 +107,7 @@ export default function WorkspaceBoundary({ children }: { children: React.ReactN
         if (contextRevision !== null) return;
         const message = error instanceof Error && error.name !== "AbortError"
           ? error.message
-          : "Không thể tải thông tin quyền lúc này.";
+          : "Unable to load permission context right now.";
         setVerificationError(message);
       } finally {
         if (checkingGeneration === started) checkingGeneration = null;
@@ -139,11 +139,11 @@ export default function WorkspaceBoundary({ children }: { children: React.ReactN
   if (denied) return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
     <section role="alert" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 shadow-lg text-center">
       <div aria-hidden="true" className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-2xl text-amber-700">!</div>
-      <h1 className="text-xl font-semibold text-slate-900">Không thể truy cập workspace</h1>
-      <p className="mt-3 text-sm leading-6 text-slate-600">Tài khoản hoặc quyền truy cập cần được kiểm tra lại. Bạn vẫn đang đăng nhập.</p>
+      <h1 className="text-xl font-semibold text-slate-900">Unable to access workspace</h1>
+      <p className="mt-3 text-sm leading-6 text-slate-600">Your account or access permissions need to be verified. You are still signed in.</p>
       <div className="mt-6 flex flex-col gap-3">
-        <button className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600" onClick={() => window.dispatchEvent(new Event("aisam-permissions-changed"))}>Kiểm tra lại quyền</button>
-        <Link className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50" href="/overview">Chọn workspace khác</Link>
+        <button className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600" onClick={() => window.dispatchEvent(new Event("aisam-permissions-changed"))}>Re-verify permissions</button>
+        <Link className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50" href="/overview">Choose another workspace</Link>
       </div>
     </section>
   </div>;
@@ -156,10 +156,10 @@ export default function WorkspaceBoundary({ children }: { children: React.ReactN
       <div role="status" className="fixed right-4 top-4 z-[100] flex max-w-md items-center gap-3 rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-lg">
         <span className="material-symbols-outlined text-amber-600">sync_problem</span>
         <span className="flex-1">{verificationError}</span>
-        <button className="font-semibold text-blue-600 hover:text-blue-700" onClick={() => window.dispatchEvent(new Event("aisam-permissions-changed"))}>Thử lại</button>
+        <button className="font-semibold text-blue-600 hover:text-blue-700" onClick={() => window.dispatchEvent(new Event("aisam-permissions-changed"))}>Retry</button>
       </div>
     )}
-    {!verified && !verificationError && <span className="sr-only" role="status">Đang đồng bộ quyền workspace…</span>}
+    {!verified && !verificationError && <span className="sr-only" role="status">Synchronizing workspace permissions…</span>}
     {children}
   </div></RbacContext.Provider>;
 }

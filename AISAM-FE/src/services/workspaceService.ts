@@ -266,6 +266,7 @@ export interface WorkspaceMember {
   name: string;
   email: string;
   role: WorkspaceMemberRole;
+  workspaceRole?: string | null;
   joinedAt: string;
 }
 
@@ -289,6 +290,7 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMembersResponse 
       fullName: string;
       email: string;
       role: number;
+      workspaceRole?: string | null;
       joinedAt: string;
     }[]> = await apiClient("/workspace-members");
     if (res?.data) {
@@ -298,6 +300,7 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMembersResponse 
         name: m.fullName,
         email: m.email,
         role: BE_ROLE_MAP[m.role] ?? "Viewer",
+        workspaceRole: m.workspaceRole ?? null,
         joinedAt: m.joinedAt,
       }));
       return { data: members, totalCount: members.length };

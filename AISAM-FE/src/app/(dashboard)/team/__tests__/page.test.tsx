@@ -20,7 +20,7 @@ describe("TeamPage RBAC contract gate", () => {
 
     render(<TeamPage />);
 
-    expect(screen.getByText("Đang tải phân quyền hai tầng")).toBeTruthy();
+    expect(screen.getByText("Loading two-tier permissions")).toBeTruthy();
     expect(screen.queryByText("Role Distribution")).toBeNull();
   });
 
