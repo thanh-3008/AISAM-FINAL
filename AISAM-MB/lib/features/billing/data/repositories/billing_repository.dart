@@ -13,43 +13,46 @@ class BillingRepository {
 
   BillingRepository(this._dio, [this._storage]);
 
+  Future<Response<dynamic>?> _safeGetSupplementary(String path) async {
+    try {
+      return await _dio.get(path);
+    } on DioException catch (e) {
+      // Re-throw authentication/authorization errors so they are not swallowed
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        rethrow;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<QuotaModel> getCurrentQuota() async {
     try {
-      // 1. Fetch Subscription & Quota
-      final quotaFuture = _dio.get('/quota/workspace/current').catchError((_) => Response(
-            requestOptions: RequestOptions(path: '/quota/workspace/current'),
-            data: {'data': <String, dynamic>{}},
-          ));
+      // 1. Primary Subscription & Quota: must fail loudly on network / auth / server error
+      final quotaFuture = _dio.get('/quota/workspace/current');
 
-      // 2. Fetch Credit Wallet
-      final walletFuture = _dio.get('/credit-usage/wallet').catchError((_) => Response(
-            requestOptions: RequestOptions(path: '/credit-usage/wallet'),
-            data: {'data': null},
-          ));
+      // 2. Supplementary Futures: rethrow auth/permission errors, return null on missing endpoints
+      final walletFuture = _safeGetSupplementary('/credit-usage/wallet');
+      final summaryFuture = _safeGetSupplementary('/workspace-dashboard/summary');
+      final membersFuture = _safeGetSupplementary('/workspace-members');
 
-      // 3. Fetch Workspace Dashboard Summary
-      final summaryFuture = _dio.get('/workspace-dashboard/summary').catchError((_) => Response(
-            requestOptions: RequestOptions(path: '/workspace-dashboard/summary'),
-            data: {'data': null},
-          ));
+      final results = await Future.wait([
+        quotaFuture,
+        walletFuture,
+        summaryFuture,
+        membersFuture,
+      ]);
 
-      // 4. Fetch Workspace Members (for personal member quota)
-      final membersFuture = _dio.get('/workspace-members').catchError((_) => Response(
-            requestOptions: RequestOptions(path: '/workspace-members'),
-            data: {'data': null},
-          ));
-
-      final results = await Future.wait([quotaFuture, walletFuture, summaryFuture, membersFuture]);
-
-      final quotaResp = results[0];
-      final walletResp = results[1];
-      final summaryResp = results[2];
-      final membersResp = results[3];
+      final quotaResp = results[0] as Response<dynamic>;
+      final walletResp = results[1] as Response<dynamic>?;
+      final summaryResp = results[2] as Response<dynamic>?;
+      final membersResp = results[3] as Response<dynamic>?;
 
       final quotaMap = (quotaResp.data?['data'] as Map<String, dynamic>?) ?? <String, dynamic>{};
-      final walletMap = walletResp.data?['data'] as Map<String, dynamic>?;
-      final summaryMap = summaryResp.data?['data'] as Map<String, dynamic>?;
-      final membersList = membersResp.data?['data'] as List?;
+      final walletMap = walletResp?.data?['data'] as Map<String, dynamic>?;
+      final summaryMap = summaryResp?.data?['data'] as Map<String, dynamic>?;
+      final membersList = membersResp?.data?['data'] as List?;
 
       // Determine real token/credit balance
       int creditBalance = 0;

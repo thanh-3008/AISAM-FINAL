@@ -43,6 +43,23 @@ class NotificationApiClient {
     return response.data['data']['count'] as int;
   }
 
+  Future<void> registerDeviceToken({
+    required String token,
+    required String platform,
+    String? deviceName,
+  }) async {
+    await _dio.post('/notifications/devices/register', data: {
+      'token': token,
+      'platform': platform,
+      if (deviceName != null) 'deviceName': deviceName,
+    });
+  }
+
+  Future<void> unregisterDeviceToken(String token) async {
+    await _dio.post('/notifications/devices/unregister', data: {
+      'token': token,
+    });
+  }
 }
 
 @riverpod

@@ -58,6 +58,10 @@ class WorkspaceRepository {
     }
   }
 
+  /// Deletes a workspace by ID.
+  /// NOTE: Backend enforces [Authorize(Roles = nameof(UserRoleEnum.Admin))].
+  /// Regular users or Workspace Owners will receive a 403 Forbidden.
+  /// Any 403 response is mapped by ExceptionHandler to a Vietnamese permission message.
   Future<void> deleteWorkspace(String id) async {
     try {
       await _dio.delete('/Workspaces/$id');

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
 import 'package:aisam_mb/features/approval/data/repositories/approval_repository.dart';
 import 'package:aisam_mb/features/content/data/models/enums.dart';
+import 'package:aisam_mb/core/errors/app_exception.dart';
 
 class MockDio extends Fake implements Dio {
   final Map<String, dynamic> responses;
@@ -93,38 +94,12 @@ void main() {
       'createdAt': '2026-09-12T01:00:00.000Z',
     };
 
-    test('getPendingApprovals returns items from /content?status=1', () async {
+    test('getPendingApprovals returns items from /content/review-queue', () async {
       final mockDio = MockDio(responses: {
-        '/content?page=1&pageSize=100&status=1': {
-          'success': true,
-          'data': {
-            'data': [sampleItem1],
-            'totalCount': 1,
-          }
-        },
-      });
-
-      final repository = ApprovalRepository(mockDio);
-      final result = await repository.getPendingApprovals();
-
-      expect(result.length, 1);
-      expect(result.first.id, sampleItem1['id']);
-      expect(result.first.status, ContentStatusEnum.pendingApproval);
-    });
-
-    test('getPendingApprovals merges and deduplicates items from review-queue', () async {
-      final mockDio = MockDio(responses: {
-        '/content?page=1&pageSize=100&status=1': {
-          'success': true,
-          'data': {
-            'data': [sampleItem1],
-            'totalCount': 1,
-          }
-        },
         '/content/review-queue?page=1&pageSize=100': {
           'success': true,
           'data': {
-            'data': [sampleItem1, sampleItem2], // sampleItem1 duplicate + sampleItem2
+            'data': [sampleItem1, sampleItem2],
             'totalCount': 2,
           }
         },
@@ -134,43 +109,42 @@ void main() {
       final result = await repository.getPendingApprovals();
 
       expect(result.length, 2);
-      expect(result.any((e) => e.id == sampleItem1['id']), isTrue);
-      expect(result.any((e) => e.id == sampleItem2['id']), isTrue);
+      expect(result.first.id, sampleItem1['id']);
+      expect(result.first.status, ContentStatusEnum.pendingApproval);
+      expect(result.last.id, sampleItem2['id']);
     });
 
-    test('getPendingApprovals falls back to /content client filtering when primary is empty', () async {
-      final draftItem = {
-        'id': '99999999-9999-9999-9999-999999999999',
-        'profileId': '22222222-2222-2222-2222-222222222222',
-        'brandId': '33333333-3333-3333-3333-333333333333',
-        'adType': 0,
-        'status': 0, // Draft
-      };
+    test('rejectContent throws ValidationException when reason is less than 5 characters', () async {
+      final mockDio = MockDio(responses: {});
+      final repository = ApprovalRepository(mockDio);
 
+      expect(
+        () => repository.rejectContent('post-1', reason: 'abc'),
+        throwsA(isA<ValidationException>()),
+      );
+      expect(
+        () => repository.rejectContent('post-1', reason: null),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('rejectContent posts to /content/{id}/reject when valid notes provided', () async {
       final mockDio = MockDio(responses: {
-        '/content?page=1&pageSize=100&status=1': {
-          'success': true,
-          'data': {'data': []},
-        },
-        '/content/review-queue?page=1&pageSize=100': {
-          'success': true,
-          'data': {'data': []},
-        },
-        '/content?page=1&pageSize=100': {
+        '/content/post-1/reject': {
           'success': true,
           'data': {
-            'data': [draftItem, sampleItem1],
-            'totalCount': 2,
+            ...sampleItem1,
+            'status': 3, // Rejected
+            'rejectionReason': 'Cần sửa lại hình ảnh',
           }
-        },
+        }
       });
 
       final repository = ApprovalRepository(mockDio);
-      final result = await repository.getPendingApprovals();
+      final result = await repository.rejectContent('post-1', reason: 'Cần sửa lại hình ảnh');
 
-      expect(result.length, 1);
-      expect(result.first.id, sampleItem1['id']);
-      expect(result.first.status, ContentStatusEnum.pendingApproval);
+      expect(result.status, ContentStatusEnum.rejected);
+      expect(result.rejectionReason, 'Cần sửa lại hình ảnh');
     });
 
     test('getHistoryApprovals filters approved and rejected posts', () async {

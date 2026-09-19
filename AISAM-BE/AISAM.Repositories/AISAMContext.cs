@@ -50,12 +50,19 @@ namespace AISAM.Repositories
         public DbSet<SystemSetting> SystemSettings { get; set; }
         public DbSet<HolidayEvent> HolidayEvents { get; set; }
         public DbSet<CampaignInsightSnapshot> CampaignInsightSnapshots { get; set; }
+        public DbSet<DeviceToken> DeviceTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
             ConfigurePermissionScope(modelBuilder);
             ConfigureMedia(modelBuilder);
+            modelBuilder.Entity<DeviceToken>(entity =>
+            {
+                entity.HasKey(d => d.Id);
+                entity.HasIndex(d => new { d.ProfileId, d.IsActive });
+                entity.HasIndex(d => d.Token).IsUnique();
+            });
             modelBuilder.Entity<Content>().HasIndex(c => new { c.WorkspaceId, c.BrandId, c.PrimaryCreatorId, c.CreatedAt });
             modelBuilder.Entity<AuditLog>().HasIndex(a => new { a.WorkspaceId, a.CreatedAt });
             modelBuilder.Entity<Post>().HasIndex(p => new { p.PublishedByUserId, p.PublishedAt });

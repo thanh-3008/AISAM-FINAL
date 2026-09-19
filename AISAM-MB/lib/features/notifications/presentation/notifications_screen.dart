@@ -7,6 +7,8 @@ import 'providers/notification_provider.dart';
 import 'providers/notification_preference_provider.dart';
 import '../domain/notification_model.dart';
 import '../domain/notification_preference_model.dart';
+import '../data/notification_api_client.dart';
+import '../../../core/services/push_notification_service.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -62,6 +64,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 value: isPushEnabled,
                 onChanged: (val) {
                   ref.read(masterPushEnabledStateProvider.notifier).toggle(val);
+                  final client = ref.read(notificationApiClientProvider);
+                  if (val) {
+                    PushNotificationService.instance.registerWithBackend(client);
+                  } else {
+                    PushNotificationService.instance.unregisterWithBackend(client);
+                  }
                 },
               ),
             ],

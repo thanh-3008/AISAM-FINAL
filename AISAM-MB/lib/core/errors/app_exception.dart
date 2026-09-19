@@ -39,6 +39,10 @@ class ConflictException extends AppException {
   ConflictException(super.message, {super.code, super.originalError});
 }
 
+class RequestTimeoutException extends AppException {
+  RequestTimeoutException(super.message, {super.code, super.originalError});
+}
+
 class ValidationException extends AppException {
   ValidationException(super.message, {super.code, super.originalError});
 }
@@ -61,11 +65,16 @@ class ExceptionHandler {
   static AppException _handleDioError(DioException error) {
     switch (error.type) {
       case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
       case DioExceptionType.connectionError:
         return NetworkException(
           'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.',
+          originalError: error,
+        );
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return RequestTimeoutException(
+          'Máy chủ phản hồi quá lâu. Vui lòng thử lại sau.',
+          code: 'TIMEOUT',
           originalError: error,
         );
       case DioExceptionType.cancel:
@@ -146,6 +155,9 @@ class ExceptionHandler {
             case 404:
               message = 'Không tìm thấy nội dung yêu cầu.';
               break;
+            case 408:
+              message = 'Yêu cầu quá thời gian chờ xử lý từ máy chủ (Timeout). Vui lòng thử lại.';
+              break;
             case 409:
             case 428:
               message = 'Dữ liệu đã bị thay đổi hoặc xung đột. Vui lòng tải lại.';
@@ -185,6 +197,12 @@ class ExceptionHandler {
           return NotFoundException(
             message,
             code: code,
+            originalError: error,
+          );
+        } else if (statusCode == 408) {
+          return RequestTimeoutException(
+            message,
+            code: code ?? 'REQUEST_TIMEOUT',
             originalError: error,
           );
         } else if (statusCode == 409 || statusCode == 428) {

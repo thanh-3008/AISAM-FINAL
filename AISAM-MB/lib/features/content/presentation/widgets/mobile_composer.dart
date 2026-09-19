@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../data/repositories/publishing_repository.dart';
 
 class MobileComposer extends StatefulWidget {
@@ -41,6 +42,8 @@ class _MobileComposerState extends State<MobileComposer> {
     });
     try {
       await action();
+    } on AppException catch (e) {
+      if (mounted) setState(() => error = e.message);
     } catch (e) {
       if (mounted) setState(() => error = e.toString());
     } finally {
@@ -82,18 +85,21 @@ class _MobileComposerState extends State<MobileComposer> {
           ].whereType<XFile>().toList()
         : await picker.pickMultiImage();
     if (!mounted || files.isEmpty) return;
-    if (items.length + files.length > 10)
-      throw StateError('Maximum 10 media items.');
+    if (items.length + files.length > 10) {
+      throw ValidationException('Tối đa 10 tệp đa phương tiện cho mỗi bài viết.');
+    }
     var total = 0;
     for (final file in files) {
       total += await file.length();
     }
-    if (total > 200 * 1024 * 1024)
-      throw StateError('Maximum 200 MiB per selection.');
+    if (total > 200 * 1024 * 1024) {
+      throw ValidationException('Tổng dung lượng chọn tối đa 200 MB.');
+    }
     for (final file in files) {
       final length = await file.length();
-      if (length > 50 * 1024 * 1024)
-        throw StateError('${file.name}: maximum 50 MiB.');
+      if (length > 50 * 1024 * 1024) {
+        throw ValidationException('${file.name}: dung lượng vượt quá 50 MB.');
+      }
       final suffix = file.name.toLowerCase().split('.').last;
       final mime = switch (suffix) {
         'png' => 'image/png',
@@ -104,7 +110,9 @@ class _MobileComposerState extends State<MobileComposer> {
         'webm' => 'video/webm',
         _ => null,
       };
-      if (mime == null) throw StateError('Unsupported media: ${file.name}');
+      if (mime == null) {
+        throw ValidationException('Định dạng tệp không được hỗ trợ: ${file.name}');
+      }
       final part = MultipartFile.fromBytes(
         await file.readAsBytes(),
         filename: file.name,
@@ -113,8 +121,9 @@ class _MobileComposerState extends State<MobileComposer> {
       if (!mounted) return;
       final result = await widget.repository.upload(widget.contentId, [part]);
       final row = Map<String, dynamic>.from(result.first);
-      if (row['assetId'] == null || row['error'] != null)
-        throw StateError('${file.name}: ${row['error']}');
+      if (row['assetId'] == null || row['error'] != null) {
+        throw ValidationException('${file.name}: ${row['error'] ?? 'Lỗi tải lên tệp'}');
+      }
       if (!mounted) return;
       setState(() {
         items.add({...row, 'mimeType': mime, 'isCover': false});
@@ -136,8 +145,9 @@ class _MobileComposerState extends State<MobileComposer> {
     ).join();
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    if (!await prefs.setString(journalKey, value))
-      throw StateError('Cannot save publish journal.');
+    if (!await prefs.setString(journalKey, value)) {
+      throw ValidationException('Không thể lưu nhật ký xuất bản.');
+    }
     if (!mounted) return;
     setState(() => key = value);
     final result = await widget.repository.publish(

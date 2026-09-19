@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/state/base_state.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/services/push_notification_service.dart';
+import '../../../notifications/data/notification_api_client.dart';
 import '../../data/models/auth_request.dart';
 import '../../data/models/auth_response.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -21,6 +24,7 @@ class AuthController extends _$AuthController {
       final repository = ref.read(authRepositoryProvider);
       final response = await repository.login(LoginRequest(email: email, password: password));
       state = BaseState.data(response);
+      unawaited(PushNotificationService.instance.registerWithBackend(ref.read(notificationApiClientProvider)));
     } on AppException catch (e) {
       state = BaseState.error(e);
     } catch (e) {
@@ -87,6 +91,7 @@ class AuthController extends _$AuthController {
       final repository = ref.read(authRepositoryProvider);
       final response = await repository.googleLogin(GoogleLoginRequest(idToken: idToken));
       state = BaseState.data(response);
+      unawaited(PushNotificationService.instance.registerWithBackend(ref.read(notificationApiClientProvider)));
     } on GoogleSignInException catch (e) {
       // If user canceled, just return to initial state
       if (e.code == GoogleSignInExceptionCode.canceled) {
@@ -103,6 +108,9 @@ class AuthController extends _$AuthController {
 
   Future<void> logout() async {
     try {
+      try {
+        await PushNotificationService.instance.unregisterWithBackend(ref.read(notificationApiClientProvider));
+      } catch (_) {}
       final repository = ref.read(authRepositoryProvider);
       await repository.logout();
     } finally {

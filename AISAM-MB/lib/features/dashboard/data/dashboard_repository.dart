@@ -62,7 +62,7 @@ class DashboardRepository {
       if (items.isEmpty) return [];
       return await compute(_parseContentList, items);
     } catch (e) {
-      return [];
+      throw ExceptionHandler.handle(e);
     }
   }
 }

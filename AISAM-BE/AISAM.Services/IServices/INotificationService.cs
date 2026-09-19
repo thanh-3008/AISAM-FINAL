@@ -17,4 +17,13 @@ public interface INotificationService
     Task<GenericResponse<bool>> MarkAllReadInWorkspaceAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<UnreadNotificationCountDto>> GetUnreadCountByWorkspaceAsync(Guid workspaceId, Guid currentProfileId, CancellationToken cancellationToken = default);
     Task<GenericResponse<bool>> DeleteInWorkspaceAsync(Guid workspaceId, Guid currentProfileId, Guid notificationId, CancellationToken cancellationToken = default);
+    Task<GenericResponse<bool>> CreateAndPushAsync(
+        Guid profileId,
+        Guid workspaceId,
+        string title,
+        string message,
+        AISAM.Data.Enumeration.NotificationTypeEnum type,
+        Guid? targetId = null,
+        string? targetType = null,
+        CancellationToken cancellationToken = default) => Task.FromResult(GenericResponse<bool>.CreateSuccess(true));
 }

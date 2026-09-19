@@ -14,13 +14,16 @@ public sealed class NotificationService : INotificationService
 {
     private readonly INotificationRepository _notificationRepository;
     private readonly IContentCalendarRepository? _contentCalendarRepository;
+    private readonly IPushNotificationService? _pushNotificationService;
 
     public NotificationService(
         INotificationRepository notificationRepository,
-        IContentCalendarRepository? contentCalendarRepository = null)
+        IContentCalendarRepository? contentCalendarRepository = null,
+        IPushNotificationService? pushNotificationService = null)
     {
         _notificationRepository = notificationRepository;
         _contentCalendarRepository = contentCalendarRepository;
+        _pushNotificationService = pushNotificationService;
     }
 
     public async Task<GenericResponse<PagedResult<NotificationListItemDto>>> GetPagedAsync(Guid profileId, PaginationRequest request, CancellationToken cancellationToken = default)
@@ -121,6 +124,59 @@ public sealed class NotificationService : INotificationService
             return GenericResponse<bool>.CreateError("Notification not found.", HttpStatusCode.NotFound);
         await _notificationRepository.DeleteAsync(notification, cancellationToken);
         return GenericResponse<bool>.CreateSuccess(true, "Notification deleted successfully.");
+    }
+
+    public async Task<GenericResponse<bool>> CreateAndPushAsync(
+        Guid profileId,
+        Guid workspaceId,
+        string title,
+        string message,
+        NotificationTypeEnum type,
+        Guid? targetId = null,
+        string? targetType = null,
+        CancellationToken cancellationToken = default)
+    {
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            WorkspaceId = workspaceId,
+            Title = title,
+            Message = message,
+            Type = type,
+            TargetId = targetId,
+            TargetType = targetType,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _notificationRepository.AddAsync(notification, cancellationToken);
+
+        if (_pushNotificationService != null && profileId != Guid.Empty)
+        {
+            var data = new Dictionary<string, string>
+            {
+                ["notificationId"] = notification.Id.ToString(),
+                ["type"] = type.ToString(),
+                ["workspaceId"] = workspaceId.ToString()
+            };
+            if (targetId.HasValue) data["targetId"] = targetId.Value.ToString();
+            if (!string.IsNullOrEmpty(targetType)) data["targetType"] = targetType;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _pushNotificationService.SendNotificationAsync(profileId, title, message, data, CancellationToken.None);
+                }
+                catch
+                {
+                    // Non-blocking background push
+                }
+            });
+        }
+
+        return GenericResponse<bool>.CreateSuccess(true, "Notification created and pushed successfully.");
     }
 
     private async Task<List<NotificationListItemDto>> MapListItemsAsync(

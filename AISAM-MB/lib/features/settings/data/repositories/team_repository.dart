@@ -11,51 +11,22 @@ class TeamRepository {
 
   Future<List<TeamSummaryModel>> getTeams({int page = 1, int pageSize = 50}) async {
     try {
-      Response response;
-      try {
-        response = await _dio.get(
-          '/teams/manage',
-          queryParameters: {'page': page, 'pageSize': pageSize},
-        );
-      } on DioException catch (e) {
-        if (e.response?.statusCode == 404 || e.response?.statusCode == 400) {
-          try {
-            response = await _dio.get(
-              '/teams',
-              queryParameters: {'page': page, 'pageSize': pageSize},
-            );
-          } on DioException catch (e2) {
-            if (e2.response?.statusCode == 404 || e2.response?.statusCode == 204) {
-              return [];
-            }
-            rethrow;
-          }
-        } else if (e.response?.statusCode == 204) {
-          return [];
-        } else {
-          rethrow;
-        }
-      }
+      final response = await _dio.get(
+        '/teams/manage',
+        queryParameters: {'page': page, 'pageSize': pageSize},
+      );
 
       final rawData = response.data?['data'];
       List items = [];
-      if (rawData is Map && rawData['items'] is List) {
-        items = rawData['items'] as List;
+      if (rawData is Map) {
+        items = (rawData['data'] ?? rawData['items']) as List? ?? [];
       } else if (rawData is List) {
         items = rawData;
       }
       return items
           .map((e) => TeamSummaryModel.fromJson(e as Map<String, dynamic>))
           .toList();
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404 || e.response?.statusCode == 204) {
-        return [];
-      }
-      throw ExceptionHandler.handle(e);
     } catch (e) {
-      if (e is NotFoundException || (e is AppException && e.message.contains('Không tìm thấy'))) {
-        return [];
-      }
       throw ExceptionHandler.handle(e);
     }
   }
@@ -97,9 +68,6 @@ class TeamRepository {
       final data = response.data['data'] as Map<String, dynamic>;
       return CreditWalletModel.fromJson(data);
     } catch (e) {
-      if (e is DioException && (e.response?.statusCode == 404 || e.response?.statusCode == 204)) {
-        return const CreditWalletModel(balance: 0, workspaceId: '');
-      }
       throw ExceptionHandler.handle(e);
     }
   }

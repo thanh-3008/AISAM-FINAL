@@ -28,7 +28,7 @@ final contentEditorControllerProvider =
 typedef _$ContentEditorController =
     AutoDisposeNotifier<BaseState<ContentResponseModel>>;
 String _$contentDetailControllerHash() =>
-    r'a2b46cf243d9085e7becb7b95d19dc14727b5f35';
+    r'8aa22b7b4b1543d8bf766c27d481aeb0792d5a71';
 
 /// Copied from Dart SDK
 class _SystemHash {

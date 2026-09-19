@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:aisam_mb/core/errors/app_exception.dart';
 import 'package:aisam_mb/features/content/data/repositories/publishing_repository.dart';
 import 'package:aisam_mb/features/content/presentation/widgets/mobile_composer.dart';
 
@@ -48,6 +49,11 @@ class FakePublishing extends PublishingRepository {
   ) async {
     publishes++;
     throw StateError('Uncertain network outcome');
+  }
+
+  @override
+  Future<bool> submit(String id) async {
+    throw ValidationException('Cần ít nhất một ảnh hoặc video trước khi gửi duyệt.');
   }
 
   @override
@@ -116,5 +122,20 @@ void main() {
     expect(repo.reads, 1);
     expect(repo.publishes, 1);
     expect(find.text('Publish selected'), findsNothing);
+  });
+
+  testWidgets('submit failure shows clean ValidationException message on UI without crash', (
+    tester,
+  ) async {
+    final repo = FakePublishing();
+    await tester.pumpWidget(app(repo));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit for review'), findsOneWidget);
+    await tester.tap(find.text('Submit for review'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Cần ít nhất một ảnh hoặc video trước khi gửi duyệt.'),
+      findsOneWidget,
+    );
   });
 }

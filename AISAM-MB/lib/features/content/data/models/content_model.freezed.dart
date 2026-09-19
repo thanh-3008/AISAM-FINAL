@@ -33,6 +33,7 @@ mixin _$ContentResponseModel {
   String? get styleDescription => throw _privateConstructorUsedError;
   String? get contextDescription => throw _privateConstructorUsedError;
   String? get representativeCharacter => throw _privateConstructorUsedError;
+  String? get rejectionReason => throw _privateConstructorUsedError;
   String? get platformRejectionReason => throw _privateConstructorUsedError;
   String? get rejectedPlatform => throw _privateConstructorUsedError;
   bool get isAiGenerated => throw _privateConstructorUsedError;
@@ -71,6 +72,7 @@ abstract class $ContentResponseModelCopyWith<$Res> {
     String? styleDescription,
     String? contextDescription,
     String? representativeCharacter,
+    String? rejectionReason,
     String? platformRejectionReason,
     String? rejectedPlatform,
     bool isAiGenerated,
@@ -114,6 +116,7 @@ class _$ContentResponseModelCopyWithImpl<
     Object? styleDescription = freezed,
     Object? contextDescription = freezed,
     Object? representativeCharacter = freezed,
+    Object? rejectionReason = freezed,
     Object? platformRejectionReason = freezed,
     Object? rejectedPlatform = freezed,
     Object? isAiGenerated = null,
@@ -187,6 +190,10 @@ class _$ContentResponseModelCopyWithImpl<
                 ? _value.representativeCharacter
                 : representativeCharacter // ignore: cast_nullable_to_non_nullable
                       as String?,
+            rejectionReason: freezed == rejectionReason
+                ? _value.rejectionReason
+                : rejectionReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
             platformRejectionReason: freezed == platformRejectionReason
                 ? _value.platformRejectionReason
                 : platformRejectionReason // ignore: cast_nullable_to_non_nullable
@@ -243,6 +250,7 @@ abstract class _$$ContentResponseModelImplCopyWith<$Res>
     String? styleDescription,
     String? contextDescription,
     String? representativeCharacter,
+    String? rejectionReason,
     String? platformRejectionReason,
     String? rejectedPlatform,
     bool isAiGenerated,
@@ -282,6 +290,7 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
     Object? styleDescription = freezed,
     Object? contextDescription = freezed,
     Object? representativeCharacter = freezed,
+    Object? rejectionReason = freezed,
     Object? platformRejectionReason = freezed,
     Object? rejectedPlatform = freezed,
     Object? isAiGenerated = null,
@@ -355,6 +364,10 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
             ? _value.representativeCharacter
             : representativeCharacter // ignore: cast_nullable_to_non_nullable
                   as String?,
+        rejectionReason: freezed == rejectionReason
+            ? _value.rejectionReason
+            : rejectionReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
         platformRejectionReason: freezed == platformRejectionReason
             ? _value.platformRejectionReason
             : platformRejectionReason // ignore: cast_nullable_to_non_nullable
@@ -404,6 +417,7 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     this.styleDescription,
     this.contextDescription,
     this.representativeCharacter,
+    this.rejectionReason,
     this.platformRejectionReason,
     this.rejectedPlatform,
     required this.isAiGenerated,
@@ -446,6 +460,8 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
   @override
   final String? representativeCharacter;
   @override
+  final String? rejectionReason;
+  @override
   final String? platformRejectionReason;
   @override
   final String? rejectedPlatform;
@@ -460,7 +476,7 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
 
   @override
   String toString() {
-    return 'ContentResponseModel(id: $id, profileId: $profileId, brandId: $brandId, workspaceId: $workspaceId, brandName: $brandName, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, thumbnailUrl: $thumbnailUrl, tags: $tags, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, platformRejectionReason: $platformRejectionReason, rejectedPlatform: $rejectedPlatform, isAiGenerated: $isAiGenerated, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'ContentResponseModel(id: $id, profileId: $profileId, brandId: $brandId, workspaceId: $workspaceId, brandName: $brandName, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, thumbnailUrl: $thumbnailUrl, tags: $tags, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, rejectionReason: $rejectionReason, platformRejectionReason: $platformRejectionReason, rejectedPlatform: $rejectedPlatform, isAiGenerated: $isAiGenerated, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -498,6 +514,8 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
                   representativeCharacter,
                 ) ||
                 other.representativeCharacter == representativeCharacter) &&
+            (identical(other.rejectionReason, rejectionReason) ||
+                other.rejectionReason == rejectionReason) &&
             (identical(
                   other.platformRejectionReason,
                   platformRejectionReason,
@@ -533,6 +551,7 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     styleDescription,
     contextDescription,
     representativeCharacter,
+    rejectionReason,
     platformRejectionReason,
     rejectedPlatform,
     isAiGenerated,
@@ -572,6 +591,7 @@ abstract class _ContentResponseModel implements ContentResponseModel {
     final String? styleDescription,
     final String? contextDescription,
     final String? representativeCharacter,
+    final String? rejectionReason,
     final String? platformRejectionReason,
     final String? rejectedPlatform,
     required final bool isAiGenerated,
@@ -612,6 +632,8 @@ abstract class _ContentResponseModel implements ContentResponseModel {
   String? get contextDescription;
   @override
   String? get representativeCharacter;
+  @override
+  String? get rejectionReason;
   @override
   String? get platformRejectionReason;
   @override

@@ -29,80 +29,14 @@ class ApprovalRepository {
 
   Future<List<ContentResponseModel>> getPendingApprovals({int page = 1, int pageSize = 100}) async {
     try {
-      final itemsMap = <String, ContentResponseModel>{};
-
-      // 1. Primary: Query /content?status=1 (PendingApproval)
-      // Matches web implementation and avoids backend PermissionReviewQueue filter block
-      // for users who are not delegated reviewers.
-      try {
-        final queryParams = {
-          'page': page,
-          'pageSize': pageSize,
-          'status': 1,
-        };
-        final response = await _dio.get('/content', queryParameters: queryParams);
-        final data = response.data is Map ? response.data['data'] : null;
-        if (data != null && data['data'] is List) {
-          final parsed = await compute(_parseContentList, data['data'] as List);
-          for (final item in parsed) {
-            if (item.status == ContentStatusEnum.pendingApproval) {
-              itemsMap[item.id] = item;
-            }
-          }
-        }
-      } on DioException catch (dioErr) {
-        if (dioErr.response?.statusCode == 401 ||
-            dioErr.type == DioExceptionType.connectionError ||
-            dioErr.type == DioExceptionType.connectionTimeout) {
-          throw ExceptionHandler.handle(dioErr);
-        }
-        debugPrint('ApprovalRepository: GET /content?status=1 error: $dioErr');
-      }
-
-      // 2. Secondary: Query /content/review-queue to catch delegated brand review items
-      try {
-        final rqResponse = await _dio.get('/content/review-queue', queryParameters: {
-          'page': page,
-          'pageSize': pageSize,
-        });
-        final rqData = rqResponse.data is Map ? rqResponse.data['data'] : null;
-        if (rqData != null && rqData['data'] is List) {
-          final parsed = await compute(_parseContentList, rqData['data'] as List);
-          for (final item in parsed) {
-            if (item.status == ContentStatusEnum.pendingApproval) {
-              itemsMap[item.id] = item;
-            }
-          }
-        }
-      } on DioException catch (dioErr) {
-        if (dioErr.response?.statusCode == 401) {
-          throw ExceptionHandler.handle(dioErr);
-        }
-        debugPrint('ApprovalRepository: GET /content/review-queue error: $dioErr');
-      }
-
-      // 3. Fallback: If still empty, query /content without status filter and filter client-side
-      if (itemsMap.isEmpty) {
-        try {
-          final fallbackResponse = await _dio.get('/content', queryParameters: {
-            'page': page,
-            'pageSize': pageSize,
-          });
-          final fbData = fallbackResponse.data is Map ? fallbackResponse.data['data'] : null;
-          if (fbData != null && fbData['data'] is List) {
-            final parsed = await compute(_parseContentList, fbData['data'] as List);
-            for (final item in parsed) {
-              if (item.status == ContentStatusEnum.pendingApproval) {
-                itemsMap[item.id] = item;
-              }
-            }
-          }
-        } catch (fbErr) {
-          debugPrint('ApprovalRepository: GET /content fallback error: $fbErr');
-        }
-      }
-
-      return itemsMap.values.toList();
+      final response = await _dio.get(
+        '/content/review-queue',
+        queryParameters: {'page': page, 'pageSize': pageSize},
+      );
+      final data = response.data is Map ? response.data['data'] : null;
+      final items = (data is Map ? (data['data'] ?? data['items']) : data) as List? ?? [];
+      if (items.isEmpty) return [];
+      return await compute(_parseContentList, items);
     } catch (e) {
       throw ExceptionHandler.handle(e);
     }
@@ -122,8 +56,15 @@ class ApprovalRepository {
   }
 
   Future<ContentResponseModel> rejectContent(String id, {String? reason}) async {
+    final trimmedReason = reason?.trim() ?? '';
+    if (trimmedReason.length < 5) {
+      throw ValidationException('Lý do từ chối bài viết phải có ít nhất 5 ký tự.');
+    }
+    if (trimmedReason.length > 1000) {
+      throw ValidationException('Lý do từ chối không được vượt quá 1000 ký tự.');
+    }
     try {
-      final response = await _dio.post('/content/$id/reject', data: {'notes': reason});
+      final response = await _dio.post('/content/$id/reject', data: {'notes': trimmedReason});
       final data = response.data;
       if (data is Map && data['data'] is Map) {
         return ContentResponseModel.fromJson(Map<String, dynamic>.from(data['data']));

@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
+import 'package:aisam_mb/core/errors/app_exception.dart';
 import 'package:aisam_mb/features/billing/data/models/quota_model.dart';
+import 'package:aisam_mb/features/billing/data/repositories/billing_repository.dart';
 
 void main() {
   group('Billing & Quota Tests', () {
@@ -71,4 +74,166 @@ void main() {
       expect(quota.memberQuotaMode, 2);
     });
   });
+
+  group('BillingRepository Contract & Error Handling Tests (SYNC-005)', () {
+    test('getCurrentQuota aggregates primary and supplementary endpoints successfully', () async {
+      final mockDio = MockBillingDio(
+        responses: {
+          '/quota/workspace/current': {
+            'data': {
+              'planName': 'Pro',
+              'subscriptionStatus': 'Active',
+              'promptQuotaLimit': 200,
+              'promptUsage': 50,
+            },
+          },
+          '/credit-usage/wallet': {
+            'data': {'balance': 5000, 'workspaceId': 'ws-123'},
+          },
+          '/workspace-dashboard/summary': {
+            'data': {'creditsUsed': 1500, 'maxBalanceCap': 10000},
+          },
+          '/workspace-members': {
+            'data': [],
+          },
+        },
+      );
+
+      final repo = BillingRepository(mockDio);
+      final quota = await repo.getCurrentQuota();
+
+      expect(quota.planName, 'Pro');
+      expect(quota.promptQuotaLimit, 200);
+      expect(quota.creditBalance, 5000);
+      expect(quota.creditsUsed, 1500);
+      expect(quota.maxBalanceCap, 10000);
+    });
+
+    test('getCurrentQuota fails loudly when primary /quota/workspace/current returns 500', () async {
+      final mockDio = MockBillingDio(
+        errors: {
+          '/quota/workspace/current': DioException(
+            requestOptions: RequestOptions(path: '/quota/workspace/current'),
+            response: Response(
+              statusCode: 500,
+              requestOptions: RequestOptions(path: '/quota/workspace/current'),
+              data: {'message': 'Internal database error'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        },
+      );
+
+      final repo = BillingRepository(mockDio);
+      expect(
+        () async => await repo.getCurrentQuota(),
+        throwsA(isA<ServerException>()),
+      );
+    });
+
+    test('getCurrentQuota rethrows UnauthorizedException when supplementary endpoint returns 401', () async {
+      final mockDio = MockBillingDio(
+        responses: {
+          '/quota/workspace/current': {
+            'data': {'planName': 'Free'},
+          },
+        },
+        errors: {
+          '/credit-usage/wallet': DioException(
+            requestOptions: RequestOptions(path: '/credit-usage/wallet'),
+            response: Response(
+              statusCode: 401,
+              requestOptions: RequestOptions(path: '/credit-usage/wallet'),
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        },
+      );
+
+      final repo = BillingRepository(mockDio);
+      expect(
+        () async => await repo.getCurrentQuota(),
+        throwsA(isA<UnauthorizedException>()),
+      );
+    });
+
+    test('getCurrentQuota tolerates non-critical 404 on supplementary endpoints without failing primary', () async {
+      final mockDio = MockBillingDio(
+        responses: {
+          '/quota/workspace/current': {
+            'data': {
+              'planName': 'Enterprise',
+              'promptQuotaLimit': 1000,
+            },
+          },
+        },
+        errors: {
+          '/credit-usage/wallet': DioException(
+            requestOptions: RequestOptions(path: '/credit-usage/wallet'),
+            response: Response(
+              statusCode: 404,
+              requestOptions: RequestOptions(path: '/credit-usage/wallet'),
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+          '/workspace-dashboard/summary': DioException(
+            requestOptions: RequestOptions(path: '/workspace-dashboard/summary'),
+            response: Response(
+              statusCode: 404,
+              requestOptions: RequestOptions(path: '/workspace-dashboard/summary'),
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+          '/workspace-members': DioException(
+            requestOptions: RequestOptions(path: '/workspace-members'),
+            response: Response(
+              statusCode: 404,
+              requestOptions: RequestOptions(path: '/workspace-members'),
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        },
+      );
+
+      final repo = BillingRepository(mockDio);
+      final quota = await repo.getCurrentQuota();
+
+      expect(quota.planName, 'Enterprise');
+      expect(quota.promptQuotaLimit, 1000);
+      expect(quota.creditBalance, 0);
+    });
+  });
+}
+
+class MockBillingDio extends Fake implements Dio {
+  final Map<String, dynamic> responses;
+  final Map<String, DioException> errors;
+
+  MockBillingDio({this.responses = const {}, this.errors = const {}});
+
+  @override
+  Future<Response<T>> get<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    if (errors.containsKey(path)) {
+      throw errors[path]!;
+    }
+    if (responses.containsKey(path)) {
+      return Response<T>(
+        data: responses[path] as T,
+        statusCode: 200,
+        requestOptions: RequestOptions(path: path),
+      );
+    }
+    return Response<T>(
+      data: {'success': true, 'data': <String, dynamic>{}} as T,
+      statusCode: 200,
+      requestOptions: RequestOptions(path: path),
+    );
+  }
 }

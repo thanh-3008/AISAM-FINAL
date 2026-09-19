@@ -93,6 +93,8 @@ ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_KEY", "TikTokSett
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_CLIENT_SECRET", "TikTokSettings:ClientSecret");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_URI", "TikTokSettings:RedirectUri");
 ApplyEnvironmentOverride(builder.Configuration, "TIKTOK_REDIRECT_PATH", "TikTokSettings:RedirectPath");
+ApplyEnvironmentOverride(builder.Configuration, "FIREBASE_CREDENTIAL_PATH", "Firebase:CredentialFilePath");
+ApplyEnvironmentOverride(builder.Configuration, "FIREBASE_SERVICE_ACCOUNT_JSON", "Firebase:ServiceAccountJson");
 
 // === OpenAI (Primary Image + Video) ===
 ApplyEnvironmentOverride(builder.Configuration, "OPENAI_API_KEY", "ImageProviderSettings:OpenAiApiKey");
@@ -265,6 +267,7 @@ builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
 builder.Services.AddScoped<IContentCalendarRepository, ContentCalendarRepository>();
 builder.Services.AddScoped<IAutomationRepository, AutomationRepository>();
 builder.Services.AddScoped<IPerformanceReportRepository, PerformanceReportRepository>();
@@ -395,6 +398,7 @@ builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<IQuotaService, QuotaService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPushNotificationService, FirebasePushNotificationService>();
 builder.Services.AddScoped<IContentScheduleService, ContentScheduleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IAdCampaignService, AdCampaignService>();
