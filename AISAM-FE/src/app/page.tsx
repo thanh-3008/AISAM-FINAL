@@ -283,12 +283,12 @@ export default function LandingPage() {
 
       <MouseGlow />
 
-      {/* Thanh tiến trình cuộn */}
+      {/* Scroll progress bar */}
       <div className="fixed top-0 left-0 w-full h-[3px] z-[60]">
         <div className="h-full bg-primary transition-[width] duration-150 ease-out" style={{ width: `${progress * 100}%` }} />
       </div>
 
-      {/* Thanh điều hướng */}
+      {/* Navigation bar */}
       <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? "bg-surface-container-lowest/90 backdrop-blur-2xl shadow-lg shadow-black/5 border-b border-outline-variant/10" : "bg-transparent"}`}>
         <div className="flex justify-between items-center px-6 lg:px-8 max-w-7xl mx-auto h-20">
           <Link href="/" className="flex items-center gap-3 group">
@@ -397,7 +397,7 @@ export default function LandingPage() {
               </Reveal>
             </div>
 
-            {/* Hình minh họa — giao diện thật của sản phẩm, không phải ảnh stock */}
+            {/* Illustration — actual product UI, not stock photos */}
             <div className="relative lg:block">
               <Reveal delay={300} direction="right">
                 <WorkspaceMock />
@@ -408,7 +408,7 @@ export default function LandingPage() {
           <ScrollIndicator />
         </section>
 
-        {/* Tính năng */}
+        {/* Features */}
         <section className="py-24 lg:py-32 px-6 lg:px-8 relative" id="features">
           <div className="max-w-7xl mx-auto">
             <Reveal>
@@ -450,7 +450,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Quy trình hoạt động */}
+        {/* Workflow */}
         <section className="py-24 lg:py-32 px-6 lg:px-8 relative overflow-hidden" id="how-it-works">
           <div className="max-w-7xl mx-auto">
             <Reveal>
@@ -515,7 +515,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Dành cho doanh nghiệp */}
+        {/* For Enterprise */}
         <section className="py-20 lg:py-28 px-6 lg:px-8 relative bg-surface-container-low/30" id="for-business">
           <div className="max-w-7xl mx-auto">
             <Reveal>

@@ -232,6 +232,7 @@ public sealed class WorkspaceService : IWorkspaceService
             WorkspaceType = workspace.WorkspaceType,
             Status = workspace.Status,
             CurrentUserRole = membership.Role,
+            WorkspaceRole = membership.WorkspaceRoleV2?.ToString(),
             ActiveMemberCount = workspace.Members.Count(member => member.IsActive),
             MemberLimit = workspace.MemberLimit,
             SubscriptionExpiredAt = workspace.SubscriptionExpiredAt,

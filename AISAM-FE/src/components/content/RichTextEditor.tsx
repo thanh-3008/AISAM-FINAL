@@ -303,8 +303,6 @@ export default function RichTextEditor({
     <div className={`relative bg-surface-container rounded-xl border border-outline-variant/20 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/5 transition-all ${className}`}>
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-outline-variant/10 flex-wrap">
-        <ToolbarBtn title="Heading" active={editor.isActive("heading")} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarBtn>
-        <ToolbarBtn title="Highlight" active={editor.isActive("highlight")} onClick={() => editor.chain().focus().toggleMark("highlight").run()}>▰</ToolbarBtn>
         <ToolbarBtn title="Link" active={editor.isActive("link")} onClick={() => {
           const href = window.prompt("Link URL (https://…)", editor.getAttributes("link").href ?? "");
           if (href === null) return;
@@ -349,17 +347,6 @@ export default function RichTextEditor({
           <span className="line-through">S</span>
         </ToolbarBtn>
 
-        {/* Highlight */}
-        <ToolbarBtn
-          onClick={() => editor.chain().focus().toggleHighlight().run()}
-          active={editor.isActive("highlight")}
-          title="Highlight"
-        >
-          <span className="relative inline-flex items-center justify-center w-full h-full">
-            <span className="absolute inset-x-0.5 bottom-0.5 h-[60%] bg-yellow-300/60 rounded-sm" />
-            <span className="relative font-bold text-[12px]">H</span>
-          </span>
-        </ToolbarBtn>
 
         {/* Uppercase — one-time transform, preserves bold/italic/underline marks */}
         <ToolbarBtn

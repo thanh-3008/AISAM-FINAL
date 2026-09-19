@@ -605,7 +605,7 @@ function PricingContent() {
                       </label>
                       <input
                         className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-2.5 text-body-sm text-on-surface placeholder:text-outline/40 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all"
-                        placeholder="e.g. CÔNG TY TNHH ACME"
+                        placeholder="e.g. ACME LTD"
                         value={businessLegalName}
                         onChange={(e) => setBusinessLegalName(e.target.value)}
                       />
@@ -1027,8 +1027,8 @@ function PricingContent() {
               </div>
 
               <div className="mb-6 rounded-2xl border border-blue-200/60 bg-blue-50 px-4 py-3 text-body-sm text-blue-800">
-                Bạn sẽ được chuyển sang PayOS để quét QR hoặc chuyển khoản. Sau khi thanh toán thành công,
-                AISAM sẽ tự đồng bộ gói/credit khi bạn quay lại hệ thống.
+                You will be redirected to PayOS to scan the QR code or transfer funds. After successful payment,
+                AISAM will automatically sync your plan/credits once you return.
               </div>
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row">
@@ -1036,7 +1036,7 @@ function PricingContent() {
                   onClick={handlePaymentExit}
                   className="flex-1 rounded-2xl border border-outline-variant/40 px-5 py-3 text-label-md font-semibold text-on-surface transition hover:bg-surface-container-high"
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   onClick={() => {
@@ -1049,7 +1049,7 @@ function PricingContent() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-label-md font-bold text-on-primary shadow-lg shadow-primary/25 transition hover:opacity-90"
                 >
                   <span className="material-symbols-outlined text-[20px]">open_in_new</span>
-                  Thanh toán với PayOS
+                  Pay with PayOS
                 </button>
               </div>
             </div>

@@ -40,6 +40,7 @@ import { updateMemberRole, removeMember } from "@/services/teamService";
 import { CREDIT_PACK_CODES_BY_ID, exitPayment, fetchPublicPricing, synchronizeBusinessWorkspacePayment, syncPayOSCallback } from "@/services/paymentService";
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { formatVndAmount, getCreditTransactionPresentation } from "@/lib/billingFormatters";
+import { getWorkspaceRoleLabel, WORKSPACE_ROLE_LABELS } from "@/lib/roleLabels";
 
 interface Workspace {
   id: string;
@@ -1751,18 +1752,21 @@ export default function ProfileDetailPage() {
                             return (
                               <>
                                 {paginatedMembers.map((member) => {
-                                  const roleConfig: Record<WorkspaceMemberRole, { label: string; color: string; bg: string; icon: string }> = {
+                                  const roleConfig: Record<string, { label: string; color: string; bg: string; icon: string }> = {
                                     Owner: { label: "Owner", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", icon: "star" },
-                                    Manager: { label: "Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
+                                    WorkspaceManager: { label: "Workspace Manager", color: "text-purple-700", bg: "bg-purple-50 border-purple-200/50", icon: "badge" },
+                                    Manager: { label: "Team Manager", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", icon: "manage_accounts" },
                                     ContentCreator: { label: "Content Creator", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", icon: "edit_note" },
                                     Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "visibility" },
+                                    Member: { label: "Member", color: "text-outline", bg: "bg-surface-container border-outline-variant/20", icon: "person" },
                                   };
                                   const statusConfigMember: Record<string, { label: string; color: string; bg: string; dot: string }> = {
                                     Active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/50", dot: "bg-emerald-500" },
                                     Pending: { label: "Pending", color: "text-amber-700", bg: "bg-amber-50 border-amber-200/50", dot: "bg-amber-500" },
                                     Invited: { label: "Invited", color: "text-blue-700", bg: "bg-blue-50 border-blue-200/50", dot: "bg-blue-500" },
                                   };
-                                  const rb = roleConfig[member.role];
+                                  const effectiveRole = member.workspaceRole || member.role;
+                                  const rb = roleConfig[effectiveRole] || roleConfig[member.role] || roleConfig["Viewer"];
                                   const sb = statusConfigMember["Active"];
                                   const isSelected = selectedMembers.has(member.id);
                                   return (
@@ -1806,7 +1810,7 @@ export default function ProfileDetailPage() {
                                       </div>
                                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${rb.bg} ${rb.color}`}>
                                         <span className="material-symbols-outlined text-[12px]">{rb.icon}</span>
-                                        {rb.label}
+                                        {member.workspaceRole ? getWorkspaceRoleLabel(member.workspaceRole) : (rb.label || member.role)}
                                       </span>
                                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-xs font-medium border ${sb.bg} ${sb.color}`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${sb.dot} animate-pulse`} />
@@ -2018,18 +2022,36 @@ export default function ProfileDetailPage() {
                           <div className="space-y-4">
                             <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
                               <span className="text-body-sm text-on-surface-variant">Role</span>
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${selectedMemberDetail.role === "Owner" ? "bg-amber-50 text-amber-700 border-amber-200/50" :
-                                  selectedMemberDetail.role === "Manager" ? "bg-blue-50 text-blue-700 border-blue-200/50" :
-                                    selectedMemberDetail.role === "ContentCreator" ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
-                                      "bg-surface-container text-on-surface-variant border-outline-variant/20"
-                                }`}>
-                                <span className="material-symbols-outlined text-[12px]">
-                                  {selectedMemberDetail.role === "Owner" ? "star" :
-                                    selectedMemberDetail.role === "Manager" ? "manage_accounts" :
-                                      selectedMemberDetail.role === "ContentCreator" ? "edit_note" : "visibility"}
-                                </span>
-                                {selectedMemberDetail.role === "ContentCreator" ? "Content Creator" : selectedMemberDetail.role}
-                              </span>
+                              {(() => {
+                                const effectiveRole = selectedMemberDetail.workspaceRole || selectedMemberDetail.role;
+                                const roleBadgeText = selectedMemberDetail.workspaceRole 
+                                  ? getWorkspaceRoleLabel(selectedMemberDetail.workspaceRole)
+                                  : (selectedMemberDetail.role === "ContentCreator" ? "Content Creator" : selectedMemberDetail.role === "Manager" ? "Team Manager" : selectedMemberDetail.role);
+                                const roleBadgeStyle = effectiveRole === "Owner"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200/50"
+                                  : effectiveRole === "WorkspaceManager"
+                                    ? "bg-purple-50 text-purple-700 border-purple-200/50"
+                                    : effectiveRole === "Manager"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200/50"
+                                      : effectiveRole === "ContentCreator"
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
+                                        : "bg-surface-container text-on-surface-variant border-outline-variant/20";
+                                const roleBadgeIcon = effectiveRole === "Owner"
+                                  ? "star"
+                                  : effectiveRole === "WorkspaceManager"
+                                    ? "badge"
+                                    : effectiveRole === "Manager"
+                                      ? "manage_accounts"
+                                      : effectiveRole === "ContentCreator"
+                                        ? "edit_note"
+                                        : "visibility";
+                                return (
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-label-xs font-semibold border ${roleBadgeStyle}`}>
+                                    <span className="material-symbols-outlined text-[12px]">{roleBadgeIcon}</span>
+                                    {roleBadgeText}
+                                  </span>
+                                );
+                              })()}
                             </div>
 
                             <div className="flex items-center justify-between p-3 rounded-xl bg-surface-container/50">
@@ -2087,9 +2109,11 @@ export default function ProfileDetailPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {[
                           { role: "Owner", desc: "Full access, billing, subscription, invite/remove members, assign quota", icon: "star", color: "text-amber-600" },
-                          { role: "Manager", desc: "Brand, Product, Content, Campaign management, view team usage", icon: "manage_accounts", color: "text-blue-600" },
+                          { role: "Workspace Manager", desc: "Member management, team coordination, workspace administration", icon: "badge", color: "text-purple-600" },
+                          { role: "Team Manager", desc: "Brand, Product, Content, Campaign management, view team usage", icon: "manage_accounts", color: "text-blue-600" },
                           { role: "Content Creator", desc: "Generate content, create drafts, publish", icon: "edit_note", color: "text-emerald-600" },
                           { role: "Viewer", desc: "View dashboard and analytics only", icon: "visibility", color: "text-outline" },
+                          { role: "Member", desc: "Standard workspace member with basic access", icon: "person", color: "text-outline" },
                         ].map((r) => (
                           <div key={r.role} className="bg-white/60 rounded-xl p-4 border border-outline-variant/10">
                             <div className="flex items-center gap-2 mb-2">
@@ -3084,7 +3108,7 @@ export default function ProfileDetailPage() {
                       <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Role</label>
                       <div className="space-y-2">
                         {[
-                          { value: "Manager", label: "Manager", icon: "manage_accounts", color: "text-blue-600", bg: "bg-blue-50", desc: "Manage brands, content, campaigns" },
+                          { value: "Manager", label: "Team Manager", icon: "manage_accounts", color: "text-blue-600", bg: "bg-blue-50", desc: "Manage brands, content, campaigns" },
                           { value: "ContentCreator", label: "Content Creator", icon: "edit_note", color: "text-emerald-600", bg: "bg-emerald-50", desc: "Create and publish content" },
                           { value: "Viewer", label: "Viewer", icon: "visibility", color: "text-outline", bg: "bg-surface-container", desc: "View dashboard and analytics only" },
                         ].map((role) => (

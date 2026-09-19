@@ -1,10 +1,12 @@
 import { type MemberRole, type MemberStatus } from "@/services/teamService";
 
-export const ROLE_CONFIG: Record<MemberRole, { label: string; color: string; bg: string }> = {
+export const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   Owner: { label: "Owner", color: "text-primary", bg: "bg-primary-fixed" },
-  Manager: { label: "Manager", color: "text-secondary", bg: "bg-secondary-fixed" },
+  WorkspaceManager: { label: "Workspace Manager", color: "text-secondary", bg: "bg-secondary-fixed" },
+  Manager: { label: "Team Manager", color: "text-secondary", bg: "bg-secondary-fixed" },
   ContentCreator: { label: "Content Creator", color: "text-tertiary", bg: "bg-tertiary-fixed" },
   Viewer: { label: "Viewer", color: "text-outline", bg: "bg-surface-container" },
+  Member: { label: "Member", color: "text-outline", bg: "bg-surface-container" },
 };
 
 export const STATUS_CONFIG: Record<MemberStatus, { label: string; color: string; dot: string }> = {

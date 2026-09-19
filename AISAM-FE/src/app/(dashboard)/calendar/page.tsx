@@ -332,7 +332,7 @@ function CalendarContent() {
       const result = await createSchedule({ contentId: deletedItem.contentId, integrationId: deletedItem.integrationId, scheduledAt: deletedItem.scheduledAt });
       if (!result.data) throw new Error(result.error || "Không tạo lại được lịch.");
       setSchedules(prev => [result.data!, ...prev.filter(s => s.id !== result.data!.id)]);
-      setDeletedItem(null); setToast("Đã tạo lại lịch trên hệ thống.");
+      setDeletedItem(null); setToast("Schedule recreated in system.");
     } catch (error) { setToast(error instanceof Error ? error.message : "Không tạo lại được lịch."); }
     finally { setActionId(null); }
   };

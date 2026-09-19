@@ -281,26 +281,41 @@ class _WorkspaceListScreenState extends ConsumerState<WorkspaceListScreen> {
   }
 }
 
+String getWorkspaceRoleName(int roleInt, [String? workspaceRole]) {
+  if (workspaceRole != null && workspaceRole.isNotEmpty) {
+    switch (workspaceRole) {
+      case 'Owner':
+        return 'Owner';
+      case 'WorkspaceManager':
+        return 'Workspace Manager';
+      case 'Member':
+        return 'Member';
+      default:
+        return workspaceRole;
+    }
+  }
+  switch (roleInt) {
+    case 1:
+      return 'Owner';
+    case 2:
+      return 'Manager';
+    case 3:
+      return 'Content Creator';
+    case 4:
+      return 'Viewer';
+    default:
+      return 'Member';
+  }
+}
+
 class _WorkspaceListItem extends ConsumerWidget {
   final WorkspaceResponseModel workspace;
   final int index;
 
   const _WorkspaceListItem({required this.workspace, required this.index});
 
-  String _getRoleName(int roleInt) {
-    switch (roleInt) {
-      case 1:
-        return 'Owner';
-      case 2:
-        return 'Manager';
-      case 3:
-        return 'Content Creator';
-      case 4:
-        return 'Viewer';
-      default:
-        return 'Member';
-    }
-  }
+  String _getRoleName(int roleInt, [String? workspaceRole]) =>
+      getWorkspaceRoleName(roleInt, workspaceRole);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -309,7 +324,7 @@ class _WorkspaceListItem extends ConsumerWidget {
       placeholderDesc = 'No description';
     }
 
-    final role = _getRoleName(workspace.currentUserRole);
+    final role = _getRoleName(workspace.currentUserRole, workspace.workspaceRole);
     Color roleBgColor = _surfaceContainerHighest;
     Color roleTextColor = _onSurface;
     if (role.toLowerCase() == 'admin' || role.toLowerCase() == 'owner') {

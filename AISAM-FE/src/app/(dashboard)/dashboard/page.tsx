@@ -596,8 +596,8 @@ export default function DashboardPage() {
                               }));
                               showToast({
                                 type: "warning",
-                                title: "Bài viết không còn khả dụng",
-                                message: "Danh sách đã được cập nhật theo quyền truy cập hiện tại.",
+                                title: "Post no longer available",
+                                message: "List has been updated according to your current permissions.",
                               });
                             } else {
                               showToast({

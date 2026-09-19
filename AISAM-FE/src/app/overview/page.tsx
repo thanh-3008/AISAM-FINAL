@@ -9,6 +9,7 @@ import { useWorkspaces, addWorkspaceToCache, getWorkspaceTypeLabel } from "@/hoo
 import { useSettings } from "@/hooks/useSettings";
 import { apiClient } from "@/lib/apiClient";
 import type { WorkspaceData } from "@/hooks/useWorkspaces";
+import { getWorkspaceRoleLabel } from "@/lib/roleLabels";
 
 interface PendingWorkspace {
   id: string;
@@ -348,7 +349,13 @@ export default function OverviewPage() {
                       <>
                         <div className="flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-outline">person</span>
-                          <span className="text-label-xs font-medium">{(workspace as WorkspaceData).isOwner ? "Owner" : (workspace as WorkspaceData).memberRole || "Member"}</span>
+                          <span className="text-label-xs font-medium">
+                            {(workspace as WorkspaceData).isOwner
+                              ? "Owner"
+                              : (workspace as WorkspaceData).workspaceRole
+                              ? getWorkspaceRoleLabel((workspace as WorkspaceData).workspaceRole)
+                              : (workspace as WorkspaceData).memberRole || "Member"}
+                          </span>
                         </div>
                       </>
                     )}

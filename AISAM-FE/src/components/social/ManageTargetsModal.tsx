@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlatformIcon } from "@/lib/contentConstants";
 import { type AvailableTarget, type SocialAccount, getAvailableTargets, linkTargets } from "@/services/socialAccountService";
 import { fetchBrands } from "@/services/brandService";
@@ -201,7 +201,7 @@ export default function ManageTargetsModal({ account, onClose, onSuccess }: Mana
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-semibold text-on-surface truncate">{target.name || target.providerTargetId}</p>
-                          <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` Â· ${target.category}` : ""}</p>
+                          <p className="text-label-2xs text-outline uppercase">{target.type}{target.category ? ` · ${target.category}` : ""}</p>
                           {target.linkedBrandName && (
                             <p className={`text-label-2xs mt-0.5 ${isLocked ? "text-danger-red" : "text-emerald-600"}`}>
                               {isLocked ? `Already linked to ${target.linkedBrandName}` : "Linked to this brand"}

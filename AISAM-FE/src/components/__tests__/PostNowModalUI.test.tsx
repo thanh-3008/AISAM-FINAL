@@ -33,21 +33,20 @@ afterEach(cleanup);
 it("renders 3-tier structure: fixed header, scrollable body, fixed footer", async () => {
   render(<PostNowModal {...props} />);
   expect(await screen.findByRole("heading", { name: "Post Now" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Đóng" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Close" })).toBeDefined();
-  expect(screen.getByRole("button", { name: /Đăng lên 0 kênh/ })).toBeDefined();
+  expect(screen.getAllByRole("button", { name: "Close" })).toHaveLength(2);
+  expect(screen.getByRole("button", { name: /Publish to 0 channels/ })).toBeDefined();
 });
 
-it("supports 'Chọn tất cả kênh hợp lệ' and 'Bỏ chọn tất cả'", async () => {
+it("supports 'Select all valid channels' and 'Deselect all'", async () => {
   render(<PostNowModal {...props} />);
-  const selectAllBtn = await screen.findByRole("button", { name: "Chọn tất cả kênh hợp lệ" });
+  const selectAllBtn = await screen.findByRole("button", { name: "Select all valid channels" });
   fireEvent.click(selectAllBtn);
 
-  expect(await screen.findByRole("button", { name: /Đăng lên 3 kênh/ })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Bỏ chọn tất cả" })).toBeDefined();
+  expect(await screen.findByRole("button", { name: /Publish to 3 channels/ })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Deselect all" })).toBeDefined();
 
-  fireEvent.click(screen.getByRole("button", { name: "Bỏ chọn tất cả" }));
-  expect(await screen.findByRole("button", { name: /Đăng lên 0 kênh/ })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+  expect(await screen.findByRole("button", { name: /Publish to 0 channels/ })).toBeDefined();
 });
 
 it("switches channel preview tabs and displays respective channel caption", async () => {

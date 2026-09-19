@@ -25,13 +25,27 @@ public class RichTextTests
     public void FacebookCaptionUsesUnicodeForSupportedRichTextMarks()
     {
         const string document = """
-            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Bold 12","marks":[{"type":"bold"}]},{"type":"text","text":" Việt","marks":[{"type":"italic"}]},{"type":"text","text":" Both","marks":[{"type":"bold"},{"type":"italic"}]},{"type":"text","text":" Ấn","marks":[{"type":"underline"}]}]}]}
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Bold 12","marks":[{"type":"bold"}]},{"type":"text","text":" Việt","marks":[{"type":"italic"}]},{"type":"text","text":" Both","marks":[{"type":"bold"},{"type":"italic"}]},{"type":"text","text":" Ấn","marks":[{"type":"underline"}]},{"type":"text","text":" Bỏ","marks":[{"type":"strike"}]}]}]}
             """;
         var plain = RichTextDocument.PlainText(document, 1);
         var captions = RichTextDocument.FormatCaptions(plain, document, 1);
 
-        Assert.Equal("𝗕𝗼𝗹𝗱 𝟭𝟮 𝘝𝘪ệ𝘵 𝘽𝙤𝙩𝙝 Ấ̲n̲", captions["facebook"]);
+        Assert.Equal("𝗕𝗼𝗹𝗱 𝟭𝟮 𝘝𝘪ệ𝘵 𝘽𝙤𝙩𝙝 Ấ̲n̲ B̶ỏ̶", captions["facebook"]);
         Assert.Equal(plain, captions["instagram"]);
+    }
+
+    [Fact]
+    public void FacebookCaptionSupportsStrikethroughWithCombiningLongStrokeOverlay()
+    {
+        const string document = """
+            {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Gạch ngang","marks":[{"type":"strike"}]},{"type":"text","text":" Sale","marks":[{"type":"strike"}]}]}]}
+            """;
+        var plain = RichTextDocument.PlainText(document, 1);
+        var captions = RichTextDocument.FormatCaptions(plain, document, 1);
+
+        Assert.Equal("G̶ạ̶c̶h̶ n̶g̶a̶n̶g̶ S̶a̶l̶e̶", captions["facebook"]);
+        Assert.Equal(plain, captions["instagram"]);
+        Assert.Equal(plain, captions["tiktok"]);
     }
 
     [Theory]

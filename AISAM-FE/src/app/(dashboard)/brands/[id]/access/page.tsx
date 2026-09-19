@@ -20,7 +20,7 @@ export default function BrandAccessPage() {
           className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-blue-700"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
-          Quay lại Brand
+          Back to Brand
         </Link>
 
         <header className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/80 to-indigo-50 p-6 shadow-sm md:p-8">
@@ -31,14 +31,14 @@ export default function BrandAccessPage() {
             </div>
             <div>
               <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-                RBAC hai tầng
+                Two-tier RBAC
               </span>
               <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
-                Quản lý Team và quyền kênh
+                Manage Teams and channel permissions
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
-                Kiểm soát Team nào được sử dụng Brand và các kênh mạng xã hội mà Team có thể truy cập. Vai trò
-                trong Team tiếp tục quyết định quyền xem, tạo nội dung và xuất bản.
+                Control which Teams can use the Brand and access social media channels. Team roles
+                further determine view, content creation, and publishing permissions.
               </p>
             </div>
           </div>
@@ -70,7 +70,7 @@ function LegacyBrandAccessPage() {
         if (!result.data.items.length || allTeams.length >= result.data.totalCount) break;
       }
       setTeams(allTeams); setChannels(integrations); setSnapshot(access);
-    } catch (e) { setError(e instanceof Error ? e.message : "Không tải được quyền."); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed to load permissions."); }
     finally { setBusy(false); }
   }, [id]);
   useEffect(() => { if (canManage) void load(); }, [canManage, load]);
@@ -79,30 +79,30 @@ function LegacyBrandAccessPage() {
     setBusy(true); setError("");
     try { setSnapshot(await changeAssignment(id, teamId, snapshot.revision, active, channel)); }
     catch (e) {
-      setError(e instanceof Error ? e.message : "Không lưu được quyền.");
+      setError(e instanceof Error ? e.message : "Failed to save permissions.");
       // Do not replay a stale grant. Require an explicit reload on conflict.
       if ((e as { status?: number }).status === 409) setSnapshot(null);
     } finally { setBusy(false); }
   }
   return <main className="p-6 space-y-5 max-w-5xl">
-    <Link href={`/brands/${id}`} className="underline">Quay lại Brand</Link>
-    <h1 className="text-2xl font-bold">Quyền truy cập Brand</h1>
-    <p>Danh sách chỉ gồm Team và kênh trong phạm vi của bạn. Quyền kênh cần quyền xem; cấp quyền đăng không tự cấp quyền duyệt nội dung.</p>
-    {!canManage && <p role="status">Quyền quản lý chưa được xác nhận hoặc bạn không được quản lý Brand này.</p>}
+    <Link href={`/brands/${id}`} className="underline">Back to Brand</Link>
+    <h1 className="text-2xl font-bold">Brand Access Permissions</h1>
+    <p>List includes only Teams and channels within your scope. Channel permissions require view access; granting publish permission does not grant approval permission.</p>
+    {!canManage && <p role="status">Management permission not verified or you do not have permission to manage this Brand.</p>}
     {error && <p role="alert" className="text-red-600">{error}</p>}
-    {canManage && <button disabled={busy} onClick={load} className="border rounded px-4 py-2">{busy ? "Đang xử lý…" : "Tải lại quyền"}</button>}
+    {canManage && <button disabled={busy} onClick={load} className="border rounded px-4 py-2">{busy ? "Processing…" : "Reload permissions"}</button>}
     {snapshot && teams.map(team => {
       const assignment = snapshot.teams.find(t => t.teamId === team.id);
       return <section key={team.id} className="border rounded-xl p-4 space-y-3">
         <h2 className="font-semibold">{team.name}</h2>
         <label className="flex gap-2"><input type="checkbox" disabled={busy} checked={assignment?.isActive ?? false}
-          onChange={e => save(team.id, e.target.checked)} />Được truy cập Brand</label>
+          onChange={e => save(team.id, e.target.checked)} />Access Brand</label>
         {assignment?.isActive && channels.map(channel => {
           const grant = snapshot.channels.find(c => c.teamBrandId === assignment.id && c.integrationId === channel.id);
           const flags = { id: channel.id, canView: grant?.canView ?? false, canPublish: grant?.canPublish ?? false, canManage: grant?.canManage ?? false };
           return <fieldset key={channel.id} disabled={busy} className="p-3 bg-slate-50 rounded flex flex-wrap gap-4">
             <legend>{channel.targetName || channel.accountName} ({channel.provider})</legend>
-            {([['canView', 'Xem'], ['canPublish', 'Đăng bài'], ['canManage', 'Quản lý']] as const).map(([key, label]) =>
+            {([['canView', 'View'], ['canPublish', 'Publish'], ['canManage', 'Manage']] as const).map(([key, label]) =>
               <label key={key} className="flex gap-2"><input type="checkbox" checked={flags[key]} disabled={key !== 'canView' && !flags.canView}
                 onChange={e => {
                   const next = { ...flags, [key]: e.target.checked };
@@ -113,6 +113,6 @@ function LegacyBrandAccessPage() {
         })}
       </section>;
     })}
-    {snapshot && teams.length === 0 && <p>Không có Team trong phạm vi quản lý.</p>}
+    {snapshot && teams.length === 0 && <p>No Teams in management scope.</p>}
   </main>;
 }

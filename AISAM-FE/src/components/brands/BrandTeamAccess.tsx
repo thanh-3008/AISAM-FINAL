@@ -360,7 +360,7 @@ function LegacyBrandTeamAccess({ brandId, brandName, isOwner }: BrandTeamAccessP
                           {team.memberCount} members · {team.brandCount} brands
                           {team.hasManager === false && (
                             <span className="text-warning-amber ml-2 font-medium">
-                              (Cần có Manager)
+                              (Requires Manager)
                             </span>
                           )}
                         </p>
