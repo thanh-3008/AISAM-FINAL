@@ -85,6 +85,15 @@ class ContentRepository {
       throw ExceptionHandler.handle(e);
     }
   }
+
+  Future<bool> withdrawContent(String id) async {
+    try {
+      final response = await _dio.post('/Content/$id/withdraw');
+      return response.data['success'] == true;
+    } catch (e) {
+      throw ExceptionHandler.handle(e);
+    }
+  }
 }
 
 @riverpod

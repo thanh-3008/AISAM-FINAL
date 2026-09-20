@@ -22,11 +22,17 @@ mixin _$ContentResponseModel {
   String get brandId => throw _privateConstructorUsedError;
   String? get workspaceId => throw _privateConstructorUsedError;
   String? get brandName => throw _privateConstructorUsedError;
+  String? get creatorId => throw _privateConstructorUsedError;
+  String? get creatorName => throw _privateConstructorUsedError;
   String? get productId => throw _privateConstructorUsedError;
+  String? get teamId => throw _privateConstructorUsedError;
   AdTypeEnum get adType => throw _privateConstructorUsedError;
   String? get title => throw _privateConstructorUsedError;
   String get textContent => throw _privateConstructorUsedError;
+  String? get richTextJson => throw _privateConstructorUsedError;
+  int? get richTextVersion => throw _privateConstructorUsedError;
   String? get imageUrl => throw _privateConstructorUsedError;
+  List<String>? get imageUrls => throw _privateConstructorUsedError;
   String? get videoUrl => throw _privateConstructorUsedError;
   String? get thumbnailUrl => throw _privateConstructorUsedError;
   String? get tags => throw _privateConstructorUsedError;
@@ -61,11 +67,17 @@ abstract class $ContentResponseModelCopyWith<$Res> {
     String brandId,
     String? workspaceId,
     String? brandName,
+    String? creatorId,
+    String? creatorName,
     String? productId,
+    String? teamId,
     AdTypeEnum adType,
     String? title,
     String textContent,
+    String? richTextJson,
+    int? richTextVersion,
     String? imageUrl,
+    List<String>? imageUrls,
     String? videoUrl,
     String? thumbnailUrl,
     String? tags,
@@ -105,11 +117,17 @@ class _$ContentResponseModelCopyWithImpl<
     Object? brandId = null,
     Object? workspaceId = freezed,
     Object? brandName = freezed,
+    Object? creatorId = freezed,
+    Object? creatorName = freezed,
     Object? productId = freezed,
+    Object? teamId = freezed,
     Object? adType = null,
     Object? title = freezed,
     Object? textContent = null,
+    Object? richTextJson = freezed,
+    Object? richTextVersion = freezed,
     Object? imageUrl = freezed,
+    Object? imageUrls = freezed,
     Object? videoUrl = freezed,
     Object? thumbnailUrl = freezed,
     Object? tags = freezed,
@@ -146,9 +164,21 @@ class _$ContentResponseModelCopyWithImpl<
                 ? _value.brandName
                 : brandName // ignore: cast_nullable_to_non_nullable
                       as String?,
+            creatorId: freezed == creatorId
+                ? _value.creatorId
+                : creatorId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            creatorName: freezed == creatorName
+                ? _value.creatorName
+                : creatorName // ignore: cast_nullable_to_non_nullable
+                      as String?,
             productId: freezed == productId
                 ? _value.productId
                 : productId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            teamId: freezed == teamId
+                ? _value.teamId
+                : teamId // ignore: cast_nullable_to_non_nullable
                       as String?,
             adType: null == adType
                 ? _value.adType
@@ -162,10 +192,22 @@ class _$ContentResponseModelCopyWithImpl<
                 ? _value.textContent
                 : textContent // ignore: cast_nullable_to_non_nullable
                       as String,
+            richTextJson: freezed == richTextJson
+                ? _value.richTextJson
+                : richTextJson // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            richTextVersion: freezed == richTextVersion
+                ? _value.richTextVersion
+                : richTextVersion // ignore: cast_nullable_to_non_nullable
+                      as int?,
             imageUrl: freezed == imageUrl
                 ? _value.imageUrl
                 : imageUrl // ignore: cast_nullable_to_non_nullable
                       as String?,
+            imageUrls: freezed == imageUrls
+                ? _value.imageUrls
+                : imageUrls // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             videoUrl: freezed == videoUrl
                 ? _value.videoUrl
                 : videoUrl // ignore: cast_nullable_to_non_nullable
@@ -239,11 +281,17 @@ abstract class _$$ContentResponseModelImplCopyWith<$Res>
     String brandId,
     String? workspaceId,
     String? brandName,
+    String? creatorId,
+    String? creatorName,
     String? productId,
+    String? teamId,
     AdTypeEnum adType,
     String? title,
     String textContent,
+    String? richTextJson,
+    int? richTextVersion,
     String? imageUrl,
+    List<String>? imageUrls,
     String? videoUrl,
     String? thumbnailUrl,
     String? tags,
@@ -279,11 +327,17 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
     Object? brandId = null,
     Object? workspaceId = freezed,
     Object? brandName = freezed,
+    Object? creatorId = freezed,
+    Object? creatorName = freezed,
     Object? productId = freezed,
+    Object? teamId = freezed,
     Object? adType = null,
     Object? title = freezed,
     Object? textContent = null,
+    Object? richTextJson = freezed,
+    Object? richTextVersion = freezed,
     Object? imageUrl = freezed,
+    Object? imageUrls = freezed,
     Object? videoUrl = freezed,
     Object? thumbnailUrl = freezed,
     Object? tags = freezed,
@@ -320,9 +374,21 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
             ? _value.brandName
             : brandName // ignore: cast_nullable_to_non_nullable
                   as String?,
+        creatorId: freezed == creatorId
+            ? _value.creatorId
+            : creatorId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        creatorName: freezed == creatorName
+            ? _value.creatorName
+            : creatorName // ignore: cast_nullable_to_non_nullable
+                  as String?,
         productId: freezed == productId
             ? _value.productId
             : productId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        teamId: freezed == teamId
+            ? _value.teamId
+            : teamId // ignore: cast_nullable_to_non_nullable
                   as String?,
         adType: null == adType
             ? _value.adType
@@ -336,10 +402,22 @@ class __$$ContentResponseModelImplCopyWithImpl<$Res>
             ? _value.textContent
             : textContent // ignore: cast_nullable_to_non_nullable
                   as String,
+        richTextJson: freezed == richTextJson
+            ? _value.richTextJson
+            : richTextJson // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        richTextVersion: freezed == richTextVersion
+            ? _value.richTextVersion
+            : richTextVersion // ignore: cast_nullable_to_non_nullable
+                  as int?,
         imageUrl: freezed == imageUrl
             ? _value.imageUrl
             : imageUrl // ignore: cast_nullable_to_non_nullable
                   as String?,
+        imageUrls: freezed == imageUrls
+            ? _value._imageUrls
+            : imageUrls // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         videoUrl: freezed == videoUrl
             ? _value.videoUrl
             : videoUrl // ignore: cast_nullable_to_non_nullable
@@ -406,11 +484,17 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     required this.brandId,
     this.workspaceId,
     this.brandName,
+    this.creatorId,
+    this.creatorName,
     this.productId,
+    this.teamId,
     required this.adType,
     this.title,
     this.textContent = '',
+    this.richTextJson,
+    this.richTextVersion,
     this.imageUrl,
+    final List<String>? imageUrls,
     this.videoUrl,
     this.thumbnailUrl,
     this.tags,
@@ -424,7 +508,7 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : _imageUrls = imageUrls;
 
   @override
   final String id;
@@ -437,7 +521,13 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
   @override
   final String? brandName;
   @override
+  final String? creatorId;
+  @override
+  final String? creatorName;
+  @override
   final String? productId;
+  @override
+  final String? teamId;
   @override
   final AdTypeEnum adType;
   @override
@@ -446,7 +536,21 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
   @JsonKey()
   final String textContent;
   @override
+  final String? richTextJson;
+  @override
+  final int? richTextVersion;
+  @override
   final String? imageUrl;
+  final List<String>? _imageUrls;
+  @override
+  List<String>? get imageUrls {
+    final value = _imageUrls;
+    if (value == null) return null;
+    if (_imageUrls is EqualUnmodifiableListView) return _imageUrls;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final String? videoUrl;
   @override
@@ -476,7 +580,7 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
 
   @override
   String toString() {
-    return 'ContentResponseModel(id: $id, profileId: $profileId, brandId: $brandId, workspaceId: $workspaceId, brandName: $brandName, productId: $productId, adType: $adType, title: $title, textContent: $textContent, imageUrl: $imageUrl, videoUrl: $videoUrl, thumbnailUrl: $thumbnailUrl, tags: $tags, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, rejectionReason: $rejectionReason, platformRejectionReason: $platformRejectionReason, rejectedPlatform: $rejectedPlatform, isAiGenerated: $isAiGenerated, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'ContentResponseModel(id: $id, profileId: $profileId, brandId: $brandId, workspaceId: $workspaceId, brandName: $brandName, creatorId: $creatorId, creatorName: $creatorName, productId: $productId, teamId: $teamId, adType: $adType, title: $title, textContent: $textContent, richTextJson: $richTextJson, richTextVersion: $richTextVersion, imageUrl: $imageUrl, imageUrls: $imageUrls, videoUrl: $videoUrl, thumbnailUrl: $thumbnailUrl, tags: $tags, styleDescription: $styleDescription, contextDescription: $contextDescription, representativeCharacter: $representativeCharacter, rejectionReason: $rejectionReason, platformRejectionReason: $platformRejectionReason, rejectedPlatform: $rejectedPlatform, isAiGenerated: $isAiGenerated, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -492,14 +596,27 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
                 other.workspaceId == workspaceId) &&
             (identical(other.brandName, brandName) ||
                 other.brandName == brandName) &&
+            (identical(other.creatorId, creatorId) ||
+                other.creatorId == creatorId) &&
+            (identical(other.creatorName, creatorName) ||
+                other.creatorName == creatorName) &&
             (identical(other.productId, productId) ||
                 other.productId == productId) &&
+            (identical(other.teamId, teamId) || other.teamId == teamId) &&
             (identical(other.adType, adType) || other.adType == adType) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.textContent, textContent) ||
                 other.textContent == textContent) &&
+            (identical(other.richTextJson, richTextJson) ||
+                other.richTextJson == richTextJson) &&
+            (identical(other.richTextVersion, richTextVersion) ||
+                other.richTextVersion == richTextVersion) &&
             (identical(other.imageUrl, imageUrl) ||
                 other.imageUrl == imageUrl) &&
+            const DeepCollectionEquality().equals(
+              other._imageUrls,
+              _imageUrls,
+            ) &&
             (identical(other.videoUrl, videoUrl) ||
                 other.videoUrl == videoUrl) &&
             (identical(other.thumbnailUrl, thumbnailUrl) ||
@@ -540,11 +657,17 @@ class _$ContentResponseModelImpl implements _ContentResponseModel {
     brandId,
     workspaceId,
     brandName,
+    creatorId,
+    creatorName,
     productId,
+    teamId,
     adType,
     title,
     textContent,
+    richTextJson,
+    richTextVersion,
     imageUrl,
+    const DeepCollectionEquality().hash(_imageUrls),
     videoUrl,
     thumbnailUrl,
     tags,
@@ -580,11 +703,17 @@ abstract class _ContentResponseModel implements ContentResponseModel {
     required final String brandId,
     final String? workspaceId,
     final String? brandName,
+    final String? creatorId,
+    final String? creatorName,
     final String? productId,
+    final String? teamId,
     required final AdTypeEnum adType,
     final String? title,
     final String textContent,
+    final String? richTextJson,
+    final int? richTextVersion,
     final String? imageUrl,
+    final List<String>? imageUrls,
     final String? videoUrl,
     final String? thumbnailUrl,
     final String? tags,
@@ -611,7 +740,13 @@ abstract class _ContentResponseModel implements ContentResponseModel {
   @override
   String? get brandName;
   @override
+  String? get creatorId;
+  @override
+  String? get creatorName;
+  @override
   String? get productId;
+  @override
+  String? get teamId;
   @override
   AdTypeEnum get adType;
   @override
@@ -619,7 +754,13 @@ abstract class _ContentResponseModel implements ContentResponseModel {
   @override
   String get textContent;
   @override
+  String? get richTextJson;
+  @override
+  int? get richTextVersion;
+  @override
   String? get imageUrl;
+  @override
+  List<String>? get imageUrls;
   @override
   String? get videoUrl;
   @override

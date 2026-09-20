@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aisam_mb/features/settings/data/models/team_model.dart';
+import 'package:aisam_mb/features/settings/data/repositories/team_repository.dart';
 import 'package:aisam_mb/features/workspace/data/models/workspace_model.dart';
 
 void main() {
@@ -199,5 +202,40 @@ void main() {
       expect(availableMembers.length, 2);
       expect(availableMembers.map((m) => m.userId).toList(), ['user-2', 'user-3']);
     });
+
+    test('inviteWorkspaceMember includes workspaceRole in request payload', () async {
+      Map<String, dynamic>? capturedPayload;
+      final dio = Dio()
+        ..httpClientAdapter = _MockHttpAdapter((RequestOptions options) {
+          if (options.path == '/workspace-invitations' && options.method == 'POST') {
+            capturedPayload = options.data as Map<String, dynamic>;
+            return ResponseBody.fromString('{"success":true,"data":{}}', 200, headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+            });
+          }
+          return ResponseBody.fromString('{"success":false}', 404);
+        });
+
+      final repo = TeamRepository(dio);
+      await repo.inviteWorkspaceMember(email: 'test@example.com', role: 3, workspaceRole: 3);
+
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!['email'], 'test@example.com');
+      expect(capturedPayload!['workspaceRole'], 3);
+      expect(capturedPayload!['role'], 3);
+    });
   });
+}
+
+class _MockHttpAdapter implements HttpClientAdapter {
+  final ResponseBody Function(RequestOptions) respond;
+  _MockHttpAdapter(this.respond);
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => respond(options);
+  @override
+  void close({bool force = false}) {}
 }

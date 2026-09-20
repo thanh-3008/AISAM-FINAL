@@ -253,6 +253,43 @@ public class WorkspaceServiceTests
         return workspace;
     }
 
+    [Theory]
+    [InlineData(WorkspaceRoleV2.Owner, "Owner")]
+    [InlineData(WorkspaceRoleV2.WorkspaceManager, "WorkspaceManager")]
+    [InlineData(WorkspaceRoleV2.Member, "Member")]
+    [InlineData(null, null)]
+    public async Task GetByUserIdAsync_MapsWorkspaceRoleCorrectly(WorkspaceRoleV2? roleV2, string? expectedRoleString)
+    {
+        await using var context = CreateContext();
+        var user = AddUser(context);
+        var service = CreateService(context);
+
+        var workspace = new Workspace
+        {
+            Name = "Role Test Workspace",
+            WorkspaceType = WorkspaceTypeEnum.Business,
+            Members =
+            [
+                new WorkspaceMember
+                {
+                    UserId = user.Id,
+                    Role = WorkspaceMemberRoleEnum.Manager,
+                    WorkspaceRoleV2 = roleV2,
+                    IsActive = true
+                }
+            ]
+        };
+        context.Workspaces.Add(workspace);
+        await context.SaveChangesAsync();
+
+        var result = await service.GetByUserIdAsync(user.Id);
+
+        Assert.True(result.Success);
+        var dto = Assert.Single(result.Data);
+        Assert.Equal(WorkspaceMemberRoleEnum.Manager, dto.CurrentUserRole);
+        Assert.Equal(expectedRoleString, dto.WorkspaceRole);
+    }
+
     private static AisamContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AisamContext>()

@@ -103,7 +103,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
     }
     final access = ref.read(rbacContextProvider).valueOrNull;
     if (widget.contentId == null && (access == null || (access.isV2 && !access.scopes.any((s) => s.teamId == _teamId && s.brandId == _brandIdController.text.trim() && access.canCreate(s))))) {
-      AppSnackbar.showError(context, 'Chọn Team và chờ xác nhận quyền trước khi lưu.'); return;
+      AppSnackbar.showError(context, 'Select a Team and verify permissions before saving.'); return;
     }
     if (_formKey.currentState!.validate()) {
       if (widget.contentId == null) {
@@ -184,7 +184,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
                           controller: _brandIdController,
                           decoration: const InputDecoration(
                             labelText: 'Brand ID * (UUID)',
-                            helperText: 'Chưa có Brand nào, vui lòng tạo Brand trước',
+                            helperText: 'No Brand found. Please create a Brand first.',
                           ),
                           validator: (value) => value == null || value.isEmpty ? 'Required' : null,
                         );
@@ -195,7 +195,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
                       return DropdownButtonFormField<String>(
                         value: currentVal,
                         decoration: const InputDecoration(
-                          labelText: 'Chọn Brand *',
+                          labelText: 'Select Brand *',
                           prefixIcon: Icon(Icons.business_outlined),
                         ),
                         items: brands.map((b) => DropdownMenuItem(
@@ -209,7 +209,7 @@ class _ContentEditorScreenState extends ConsumerState<ContentEditorScreen> {
                             });
                           }
                         },
-                        validator: (value) => (_brandIdController.text.isEmpty) ? 'Vui lòng chọn Brand' : null,
+                        validator: (value) => (_brandIdController.text.isEmpty) ? 'Please select a Brand' : null,
                       );
                     },
                     loading: () => const LinearProgressIndicator(),

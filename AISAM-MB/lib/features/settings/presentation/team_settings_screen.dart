@@ -155,7 +155,7 @@ class _TeamSettingsScreenState extends ConsumerState<TeamSettingsScreen> {
                       ),
                       DropdownMenuItem(
                         value: 'Manager',
-                        child: Text(isEn ? 'Manager' : 'Quản lý (Manager)'),
+                        child: Text(isEn ? 'Team Manager' : 'Quản lý (Team Manager)'),
                       ),
                       DropdownMenuItem(
                         value: 'Viewer',
@@ -361,15 +361,11 @@ class _TeamSettingsScreenState extends ConsumerState<TeamSettingsScreen> {
                     items: [
                       DropdownMenuItem(
                         value: 3,
-                        child: Text(isEn ? 'Content Creator' : 'Sáng tạo nội dung (Content Creator)'),
+                        child: Text(isEn ? 'Member' : 'Thành viên (Member)'),
                       ),
                       DropdownMenuItem(
                         value: 2,
-                        child: Text(isEn ? 'Manager' : 'Quản lý (Manager)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 4,
-                        child: Text(isEn ? 'Viewer' : 'Người xem (Viewer)'),
+                        child: Text(isEn ? 'Workspace Manager' : 'Quản lý Workspace (Workspace Manager)'),
                       ),
                     ],
                     onChanged: (val) {
@@ -451,6 +447,7 @@ class _TeamSettingsScreenState extends ConsumerState<TeamSettingsScreen> {
                           await ref.read(teamRepositoryProvider).inviteWorkspaceMember(
                                 email: email,
                                 role: selectedRole,
+                                workspaceRole: selectedRole,
                                 quotaMode: selectedQuotaMode,
                                 creditLimit: limit,
                               );
@@ -824,11 +821,13 @@ class _TeamSettingsScreenState extends ConsumerState<TeamSettingsScreen> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final member = filtered[index];
-                        final roleString = member.role == 1
-                            ? 'Owner'
-                            : (member.role == 2
-                                ? 'Manager'
-                                : (member.role == 3 ? 'Content Creator' : 'Viewer'));
+                        final roleString = (member.workspaceRole != null && member.workspaceRole!.isNotEmpty)
+                            ? (member.workspaceRole == 'WorkspaceManager' ? 'Workspace Manager' : member.workspaceRole!)
+                            : (member.role == 1
+                                ? 'Owner'
+                                : (member.role == 2
+                                    ? 'Team Manager'
+                                    : (member.role == 3 ? 'Content Creator' : (member.role == 4 ? 'Viewer' : 'Member'))));
 
                         return _buildMemberCard(
                           name: member.fullName ?? member.email,
@@ -929,22 +928,31 @@ class _TeamSettingsScreenState extends ConsumerState<TeamSettingsScreen> {
     Color roleBgColor;
     Color roleTextColor;
     String roleLabel = roleString;
-    if (roleString.toLowerCase() == 'owner') {
+    final normalized = roleString.toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+    if (normalized == 'owner') {
       roleBgColor = _secondaryColor.withOpacity(0.12);
       roleTextColor = _secondaryColor;
-      roleLabel = isEn ? 'Owner' : 'Chủ sở hữu';
-    } else if (roleString.toLowerCase() == 'manager') {
+      roleLabel = 'Owner';
+    } else if (normalized == 'workspacemanager') {
+      roleBgColor = _secondaryColor.withOpacity(0.12);
+      roleTextColor = _secondaryColor;
+      roleLabel = 'Workspace Manager';
+    } else if (normalized == 'manager' || normalized == 'teammanager') {
       roleBgColor = _primaryColor.withOpacity(0.12);
       roleTextColor = _primaryColor;
-      roleLabel = isEn ? 'Manager' : 'Quản lý';
-    } else if (roleString.toLowerCase().contains('creator')) {
+      roleLabel = 'Team Manager';
+    } else if (normalized.contains('creator')) {
       roleBgColor = _secondaryFixedDim.withOpacity(0.3);
       roleTextColor = const Color(0xFF5B21B6);
-      roleLabel = isEn ? 'Content Creator' : 'Sáng tạo nội dung';
+      roleLabel = 'Content Creator';
+    } else if (normalized == 'viewer') {
+      roleBgColor = _surfaceContainer;
+      roleTextColor = _onSurfaceVariant;
+      roleLabel = 'Viewer';
     } else {
       roleBgColor = _surfaceContainer;
       roleTextColor = _onSurfaceVariant;
-      roleLabel = isEn ? 'Viewer' : 'Người xem';
+      roleLabel = 'Member';
     }
 
     final initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'M';

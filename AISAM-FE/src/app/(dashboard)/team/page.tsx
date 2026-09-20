@@ -17,14 +17,14 @@ export default function TeamPage() {
           <span className="material-symbols-outlined animate-spin text-3xl text-blue-600" aria-hidden="true">
             progress_activity
           </span>
-          <h1 className="mt-3 text-lg font-semibold text-slate-900">Đang tải phân quyền hai tầng</h1>
-          <p className="mt-2 text-sm text-slate-600">Vai trò workspace và vai trò Team đang được đồng bộ.</p>
+          <h1 className="mt-3 text-lg font-semibold text-slate-900">Loading two-tier permissions</h1>
+          <p className="mt-2 text-sm text-slate-600">Workspace roles and Team roles are being synchronized.</p>
           <button
             type="button"
             className="mt-5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
             onClick={() => window.dispatchEvent(new Event("aisam-permissions-changed"))}
           >
-            Tải lại quyền
+            Reload permissions
           </button>
         </section>
       </main>

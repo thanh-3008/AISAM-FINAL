@@ -78,4 +78,15 @@ class ContentDetailController extends _$ContentDetailController {
       throw ExceptionHandler.handle(e);
     }
   }
+
+  Future<void> withdrawContent(String id) async {
+    try {
+      final repository = ref.read(contentRepositoryProvider);
+      await repository.withdrawContent(id);
+      await _fetchDetail(id);
+      ref.read(contentListControllerProvider.notifier).refresh();
+    } catch (e) {
+      throw ExceptionHandler.handle(e);
+    }
+  }
 }

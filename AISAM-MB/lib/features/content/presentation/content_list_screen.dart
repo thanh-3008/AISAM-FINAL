@@ -102,15 +102,41 @@ class _ContentListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayImage = content.legacyImageUrls.isNotEmpty
+        ? content.legacyImageUrls.first
+        : content.imageUrl;
+
     return ListTile(
-      leading: content.imageUrl != null
-          ? Image.network(content.imageUrl!, width: 50, height: 50, fit: BoxFit.cover)
+      leading: displayImage != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                displayImage,
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40),
+              ),
+            )
           : const Icon(Icons.article, size: 40),
       title: Text(content.title ?? 'Untitled Content'),
-      subtitle: Text(
-        content.textContent,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (content.creatorName != null && content.creatorName!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                'By ${content.creatorName}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              ),
+            ),
+          Text(
+            content.textContent,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

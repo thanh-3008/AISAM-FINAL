@@ -9,6 +9,7 @@ public sealed class WorkspaceResponseDto
     public WorkspaceTypeEnum WorkspaceType { get; set; }
     public WorkspaceStatusEnum Status { get; set; }
     public WorkspaceMemberRoleEnum CurrentUserRole { get; set; }
+    public string? WorkspaceRole { get; set; }
     public int ActiveMemberCount { get; set; }
     public int MemberLimit { get; set; }
     public DateTime? SubscriptionExpiredAt { get; set; }

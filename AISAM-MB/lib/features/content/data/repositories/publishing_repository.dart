@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/enums/rbac_enums.dart';
 
 /// Workspace/auth headers are supplied by the shared authenticated Dio client.
 /// Callers retain the same key across uncertain publish outcomes.
@@ -40,15 +41,25 @@ class PublishingRepository {
   }
 
   Future<List<bool>> contentPermissions(String id) async {
+    final permissionsToCheck = [
+      ResourcePermission.contentView,
+      ResourcePermission.contentEdit,
+      ResourcePermission.contentDelete,
+      ResourcePermission.approvalReview,
+    ];
     final data = await _request(
       '/permissions/check',
       method: 'POST',
       data: [
-        for (final permission in [2, 4, 5, 7])
-          {'kind': 2, 'resourceId': id, 'permission': permission},
+        for (final permission in permissionsToCheck)
+          {
+            'kind': AccessResourceKind.content.value,
+            'resourceId': id,
+            'permission': permission.value,
+          },
       ],
     );
-    if (data is! List || data.length != 4 || data.any((v) => v is! bool)) {
+    if (data is! List || data.length != permissionsToCheck.length || data.any((v) => v is! bool)) {
       throw StateError('Invalid permission response');
     }
     return data.cast<bool>();

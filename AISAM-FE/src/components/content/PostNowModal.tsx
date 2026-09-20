@@ -183,7 +183,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
             </div>
             <div>
               <h3 className="font-bold text-lg text-on-surface">Post Now</h3>
-              <p className="text-xs text-on-surface-variant">Chọn kênh phân phối và kiểm tra nội dung trước khi xuất bản</p>
+              <p className="text-xs text-on-surface-variant">Select distribution channels and review content before publishing</p>
             </div>
           </div>
           <button
@@ -201,14 +201,14 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
           {!preview && !error && (
             <div className="flex items-center gap-2 text-sm text-on-surface-variant p-3 bg-surface-container rounded-xl">
               <span className="material-symbols-outlined animate-spin text-base" aria-hidden="true">progress_activity</span>
-              <p>Đang kiểm tra nội dung và quyền kênh…</p>
+              <p>Checking content and channel permissions…</p>
             </div>
           )}
 
           {preview && !preview.approved && (
             <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-sm flex items-start gap-2.5" role="alert">
               <span className="material-symbols-outlined text-amber-600 text-base mt-0.5 shrink-0" aria-hidden="true">warning</span>
-              <p>Nội dung cần được duyệt trước khi đăng. Hãy lưu media và gửi duyệt lại.</p>
+              <p>Content requires approval before publishing. Please save media and resubmit for review.</p>
             </div>
           )}
 
@@ -224,9 +224,9 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Kênh xuất bản</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Publishing channels</h4>
                   <span className="text-xs bg-surface-container px-2 py-0.5 rounded-full font-medium text-on-surface-variant">
-                    {selected.length}/{preview.destinations.length} đã chọn
+                    {selected.length}/{preview.destinations.length} selected
                   </span>
                 </div>
                 {canSelectAll && (
@@ -243,7 +243,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                     }}
                     className="text-xs font-semibold text-primary hover:underline"
                   >
-                    {validDestinations.every(d => selected.includes(d.id)) ? "Bỏ chọn tất cả" : "Chọn tất cả kênh hợp lệ"}
+                    {validDestinations.every(d => selected.includes(d.id)) ? "Deselect all" : "Select all valid channels"}
                   </button>
                 )}
               </div>
@@ -278,17 +278,17 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                             <span className="text-xs text-on-surface-variant font-medium capitalize">— {d.platform}</span>
                             {isPublished && (
                               <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.2 rounded-full">
-                                <span className="material-symbols-outlined text-xs" aria-hidden="true">check</span> Đã đăng
+                                <span className="material-symbols-outlined text-xs" aria-hidden="true">check</span> Published
                               </span>
                             )}
                           </div>
 
                           {d.error && (
                             <div className="mt-1 text-xs text-rose-600 space-y-0.5">
-                              <p role="status">Không tương thích hoặc thiếu quyền: {d.error}. Bạn có thể bỏ chọn kênh này.</p>
+                              <p role="status">Incompatible or missing permissions: {d.error}. You can deselect this channel.</p>
                               {d.error === "SOCIAL_REAUTH_REQUIRED" && (
                                 <a href="/social" className="inline-flex items-center gap-1 underline font-medium hover:text-rose-700">
-                                  <span className="material-symbols-outlined text-xs" aria-hidden="true">open_in_new</span> Kết nối lại tài khoản
+                                  <span className="material-symbols-outlined text-xs" aria-hidden="true">open_in_new</span> Reconnect account
                                 </a>
                               )}
                             </div>
@@ -306,7 +306,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
           {preview && preview.destinations.length > 0 && activeDest && (
             <div className="border border-surface-container rounded-2xl overflow-hidden bg-surface-container-lowest">
               <div className="border-b border-surface-container bg-surface-container-low/60 px-3 py-2 flex items-center justify-between gap-2 overflow-x-auto">
-                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant shrink-0">Xem trước kênh:</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant shrink-0">Channel preview:</span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {preview.destinations.map(d => {
                     const isActive = activeDest.id === d.id;
@@ -340,7 +340,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                     <span className="font-semibold text-on-surface">{activeDest.name}</span>
                   </div>
                   <span>
-                    {Array.from(activeDest.caption).length} ký tự · tối đa {activeDest.capability.maxItems} media theo adapter
+                    {Array.from(activeDest.caption).length} characters · max {activeDest.capability.maxItems} media per adapter
                   </span>
                 </div>
 
@@ -351,7 +351,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 {preview.media && preview.media.length > 0 && (
                   <div className="pt-2 border-t border-surface-container">
                     <div className="text-xs font-medium text-on-surface-variant mb-2">
-                      Media đính kèm ({preview.media.length}):
+                      Attached media ({preview.media.length}):
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {preview.media.map((m, i) => m.mimeType.startsWith("video/")
@@ -367,7 +367,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
           {/* Results Section */}
           {results.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Kết quả xử lý</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Processing results</h4>
               <ul className="space-y-2">
                 {results.map(result => {
                   const dest = preview?.destinations.find(d => d.id === result.integrationId);
@@ -393,7 +393,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                       </div>
                       {result.errorCode === "SOCIAL_REAUTH_REQUIRED" && (
                         <a href="/social" className="text-xs font-semibold underline hover:opacity-80 ml-2 shrink-0">
-                          Kết nối lại
+                          Reconnect
                         </a>
                       )}
                     </li>
@@ -405,7 +405,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
 
             {attempt && (
             <p className="text-xs text-on-surface-variant bg-surface-container/60 p-3 rounded-xl border border-surface-container">
-              Kết quả từng kênh được lưu riêng. Nếu timeout hoặc NeedsAttention, cần đối soát trước khi tạo yêu cầu mới.
+              Results for each channel are saved separately. If timeout or NeedsAttention occurs, verify before creating a new request.
             </p>
           )}
         </div>
@@ -418,7 +418,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-on-surface-variant hover:text-on-surface rounded-xl hover:bg-surface-container transition-colors disabled:opacity-50"
           >
-            Đóng
+            Close
           </button>
 
           <div className="flex items-center gap-2">
@@ -429,7 +429,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 onClick={publish}
                 className="px-5 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary-hover shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Đăng lên {selected.length} kênh
+                Publish to {selected.length} channels
               </button>
             ) : (
               <button
@@ -438,7 +438,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 onClick={check}
                 className="px-5 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary-hover shadow-xs transition-all disabled:opacity-50"
               >
-                Kiểm tra kết quả
+                Check results
               </button>
             )}
 
@@ -449,7 +449,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 onClick={resumeMissingAttempt}
                 className="px-4 py-2 text-sm font-semibold bg-amber-600 text-white rounded-xl hover:bg-amber-700 shadow-xs transition-all disabled:opacity-50"
               >
-                Tiếp tục yêu cầu đăng
+                Continue publish request
               </button>
             )}
 
@@ -459,7 +459,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 onClick={onSuccess}
                 className="px-5 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-xs transition-all"
               >
-                Hoàn tất
+                Completed
               </button>
             )}
 
@@ -481,7 +481,7 @@ export default function PostNowModal({ contentId, onClose, onSuccess }: Props) {
                 }}
                 className="px-4 py-2 text-sm font-semibold bg-amber-600 text-white rounded-xl hover:bg-amber-700 shadow-xs transition-all disabled:opacity-50"
               >
-                Chuẩn bị lượt mới cho kênh lỗi đã xác nhận
+                Prepare new attempt for confirmed failed channels
               </button>
             )}
           </div>

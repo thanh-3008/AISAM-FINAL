@@ -86,19 +86,19 @@ class _MobileComposerState extends State<MobileComposer> {
         : await picker.pickMultiImage();
     if (!mounted || files.isEmpty) return;
     if (items.length + files.length > 10) {
-      throw ValidationException('Tối đa 10 tệp đa phương tiện cho mỗi bài viết.');
+      throw ValidationException('Maximum 10 media files allowed per post.');
     }
     var total = 0;
     for (final file in files) {
       total += await file.length();
     }
     if (total > 200 * 1024 * 1024) {
-      throw ValidationException('Tổng dung lượng chọn tối đa 200 MB.');
+      throw ValidationException('Total selected file size must not exceed 200 MB.');
     }
     for (final file in files) {
       final length = await file.length();
       if (length > 50 * 1024 * 1024) {
-        throw ValidationException('${file.name}: dung lượng vượt quá 50 MB.');
+        throw ValidationException('${file.name}: file size exceeds 50 MB limit.');
       }
       final suffix = file.name.toLowerCase().split('.').last;
       final mime = switch (suffix) {
@@ -111,7 +111,7 @@ class _MobileComposerState extends State<MobileComposer> {
         _ => null,
       };
       if (mime == null) {
-        throw ValidationException('Định dạng tệp không được hỗ trợ: ${file.name}');
+        throw ValidationException('Unsupported file format: ${file.name}');
       }
       final part = MultipartFile.fromBytes(
         await file.readAsBytes(),
@@ -122,7 +122,7 @@ class _MobileComposerState extends State<MobileComposer> {
       final result = await widget.repository.upload(widget.contentId, [part]);
       final row = Map<String, dynamic>.from(result.first);
       if (row['assetId'] == null || row['error'] != null) {
-        throw ValidationException('${file.name}: ${row['error'] ?? 'Lỗi tải lên tệp'}');
+        throw ValidationException('${file.name}: ${row['error'] ?? 'File upload failed'}');
       }
       if (!mounted) return;
       setState(() {
@@ -146,7 +146,7 @@ class _MobileComposerState extends State<MobileComposer> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     if (!await prefs.setString(journalKey, value)) {
-      throw ValidationException('Không thể lưu nhật ký xuất bản.');
+      throw ValidationException('Failed to save publication journal.');
     }
     if (!mounted) return;
     setState(() => key = value);

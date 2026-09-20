@@ -404,7 +404,7 @@ export default function ContentPage() {
               </div>
             </div>
             <div>
-              <h1 className="text-headline-sm font-bold text-on-surface">{mine ? "My content" : "Content Library"}</h1><label className="flex gap-2 text-sm"><input type="checkbox" checked={mine} onChange={e => { setMineChoice(e.target.checked); setSelectedIds(new Set()); setPage(1); }} />Chỉ nội dung của tôi</label>
+              <h1 className="text-headline-sm font-bold text-on-surface">{mine ? "My content" : "Content Library"}</h1><label className="flex gap-2 text-sm"><input type="checkbox" checked={mine} onChange={e => { setMineChoice(e.target.checked); setSelectedIds(new Set()); setPage(1); }} />Only my content</label>
               <p className="text-body-sm text-on-surface-variant">Create, manage, and publish your brand content</p>
             </div>
           </div>
@@ -1058,7 +1058,7 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
   const publishAllowed = usePublishPermission(item.id, item.brandId);
 
   const getEditDisabledReason = () => {
-    if (!allowed.isReady) return "Đang kiểm tra quyền...";
+    if (!allowed.isReady) return "Checking permissions...";
     if (allowed(0)) return undefined;
     if (item.status === "Approved") return "Nội dung đã duyệt. Hãy vào trang chi tiết để thu hồi duyệt nếu muốn sửa.";
     if (item.status === "Awaiting Approval") return "Nội dung đang chờ duyệt, không thể chỉnh sửa.";
@@ -1067,13 +1067,13 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
   };
 
   const getSubmitDisabledReason = () => {
-    if (!allowed.isReady) return "Đang kiểm tra quyền...";
+    if (!allowed.isReady) return "Checking permissions...";
     if (allowed(0)) return undefined;
     return "Bạn không có quyền gửi duyệt nội dung này.";
   };
 
   const getDeleteDisabledReason = () => {
-    if (!allowed.isReady) return "Đang kiểm tra quyền...";
+    if (!allowed.isReady) return "Checking permissions...";
     if (allowed(1)) return undefined;
     if (item.status === "Published" || item.status === "Scheduled") return "Không thể xóa nội dung đã lên lịch hoặc xuất bản.";
     return "Bạn không có quyền xóa nội dung này.";
@@ -1189,7 +1189,7 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction,
               {item.type === "IMAGE" && multiImageCount > 1 && (
                 <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm">
                   <span className="material-symbols-outlined text-[13px]">photo_library</span>
-                  <span>{multiImageCount} ảnh</span>
+                  <span>{multiImageCount} images</span>
                 </div>
               )}
             </div>

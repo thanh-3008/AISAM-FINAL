@@ -60,15 +60,15 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
 
   Future<void> _handleSchedule() async {
     if (_selectedContentId == null) {
-      AppSnackbar.showError(context, 'Vui lòng chọn bài viết để lên lịch');
+      AppSnackbar.showError(context, 'Please select content to schedule');
       return;
     }
     if (_selectedIntegration == null) {
-      AppSnackbar.showError(context, 'Vui lòng chọn kênh mạng xã hội');
+      AppSnackbar.showError(context, 'Please select a social channel');
       return;
     }
     if (_selectedDate == null || _selectedTime == null) {
-      AppSnackbar.showError(context, 'Vui lòng chọn ngày giờ đăng');
+      AppSnackbar.showError(context, 'Please select publication date and time');
       return;
     }
 
@@ -81,7 +81,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
     ).toUtc();
 
     if (scheduledAt.isBefore(DateTime.now().toUtc())) {
-      AppSnackbar.showError(context, 'Thời gian lên lịch phải ở tương lai');
+      AppSnackbar.showError(context, 'Scheduled time must be in the future');
       return;
     }
 
@@ -94,12 +94,12 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
       );
       await ref.read(calendarNotifierProvider.notifier).createSchedule(request);
       if (mounted) {
-        AppSnackbar.showSuccess(context, 'Lên lịch thành công!');
+        AppSnackbar.showSuccess(context, 'Scheduled successfully!');
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        AppSnackbar.showError(context, 'Lỗi: $e');
+        AppSnackbar.showError(context, 'Error: $e');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -130,7 +130,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Lên lịch nhanh',
+                'Quick Schedule',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               IconButton(
@@ -142,14 +142,14 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
           const SizedBox(height: 24),
           
           if (widget.contentId == null) ...[
-            const Text('Chọn bài viết', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Select Content', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             contentsState.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, st) => Text('Lỗi tải danh sách bài viết: $e', style: const TextStyle(color: Colors.red)),
+              error: (e, st) => Text('Failed to load content list: $e', style: const TextStyle(color: Colors.red)),
               data: (contents) {
                 if (contents.isEmpty) {
-                  return const Text('Bạn chưa có bài viết nào. Hãy tạo bài viết trước.');
+                  return const Text('No content available. Please create content first.');
                 }
                 return DropdownButtonFormField<String>(
                   initialValue: _selectedContentId,
@@ -158,11 +158,11 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
-                  hint: const Text('Chọn một bài viết'),
+                  hint: const Text('Select a content'),
                   items: contents.map((ContentResponseModel c) {
                     return DropdownMenuItem<String>(
                       value: c.id,
-                      child: Text(c.title ?? 'Không có tiêu đề', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(c.title ?? 'Untitled', maxLines: 1, overflow: TextOverflow.ellipsis),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -176,14 +176,14 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
             const SizedBox(height: 24),
           ],
           
-          const Text('Chọn kênh mạng xã hội', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('Select Social Channel', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           integrationsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, st) => Text('Lỗi tải danh sách kênh: $e', style: const TextStyle(color: Colors.red)),
+            error: (e, st) => Text('Failed to load channels: $e', style: const TextStyle(color: Colors.red)),
             data: (integrations) {
               if (integrations.isEmpty) {
-                return const Text('Chưa có kênh nào được kết nối. Hãy vào Cài đặt để thêm kênh.');
+                return const Text('No channels connected. Go to Settings to connect channels.');
               }
               return DropdownButtonFormField<SocialIntegrationModel>(
                 initialValue: _selectedIntegration,
@@ -192,7 +192,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                hint: const Text('Chọn một kênh'),
+                hint: const Text('Select a channel'),
                 items: integrations.map((integration) {
                   return DropdownMenuItem(
                     value: integration,
@@ -211,7 +211,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
           ),
           const SizedBox(height: 24),
 
-          const Text('Chọn thời gian', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('Select Date & Time', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -230,7 +230,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
                         const Icon(Icons.calendar_today, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          _selectedDate == null ? 'Ngày' : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+                          _selectedDate == null ? 'Date' : DateFormat('dd/MM/yyyy').format(_selectedDate!),
                         ),
                       ],
                     ),
@@ -253,7 +253,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
                         const Icon(Icons.access_time, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          _selectedTime == null ? 'Giờ' : _selectedTime!.format(context),
+                          _selectedTime == null ? 'Time' : _selectedTime!.format(context),
                         ),
                       ],
                     ),
@@ -274,7 +274,7 @@ class _SchedulePostBottomSheetState extends ConsumerState<SchedulePostBottomShee
             ),
             child: _isLoading
                 ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('Xác nhận lên lịch', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                : const Text('Confirm Schedule', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

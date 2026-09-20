@@ -29,8 +29,8 @@ it("provides fullscreen and remove actions on every image thumbnail", () => {
     { url: "https://cdn.test/two.jpg", mimeType: "image/jpeg" },
   ]} onRemove={onRemove} onReplace={onReplace} />);
   fireEvent.click(screen.getByRole("button", { name: "Enlarge image 1" }));
-  expect(screen.getByTitle("Đóng (Esc)")).toBeTruthy();
-  fireEvent.click(screen.getByTitle("Đóng (Esc)"));
+  expect(screen.getByTitle("Close (Esc)")).toBeTruthy();
+  fireEvent.click(screen.getByTitle("Close (Esc)"));
   fireEvent.click(screen.getByRole("button", { name: "Replace image 1" }));
   expect(onReplace).toHaveBeenCalledWith(0);
   fireEvent.click(screen.getByRole("button", { name: "Remove image 2" }));

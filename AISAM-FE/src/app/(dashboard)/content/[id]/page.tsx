@@ -163,7 +163,7 @@ export default function ContentDetailPage() {
       setEditing(true);
     } else if (item.status === "Approved") {
       setToast({
-        message: "Nội dung đã duyệt. Vui lòng bấm 'Thu hồi duyệt để sửa' nếu muốn thay đổi.",
+        message: "Content is approved. Please click 'Revoke approval to edit' if you want to make changes.",
         type: "error",
       });
     } else if (item.status === "Awaiting Approval") {
@@ -214,7 +214,7 @@ export default function ContentDetailPage() {
       }
       window.dispatchEvent(new Event("aisam-permissions-changed"));
       setEditing(true);
-      setToast({ message: "Đã thu hồi phê duyệt. Bạn có thể chỉnh sửa bài viết ngay bây giờ.", type: "success" });
+      setToast({ message: "Approval revoked. You can now edit the post.", type: "success" });
     } catch (error) {
       setToast({ type: "error", message: error instanceof Error ? error.message : "Không thu hồi được duyệt." });
     } finally {
@@ -244,7 +244,7 @@ export default function ContentDetailPage() {
     });
     if (result.success) {
       setEditing(false);
-      setToast({ message: "Lưu thay đổi bài viết thành công!", type: "success" });
+      setToast({ message: "Post changes saved successfully!", type: "success" });
       const refreshed = await fetchContentById(params.id as string);
       if (refreshed) {
         setItem(refreshed);
@@ -345,8 +345,8 @@ export default function ContentDetailPage() {
             <div className="flex items-center gap-3">
               <span className="material-symbols-outlined text-amber-600 text-[24px] shrink-0">verified</span>
               <div>
-                <h4 className="text-label-sm font-bold text-amber-950">Bài viết đã được phê duyệt (Approved)</h4>
-                <p className="text-body-sm text-amber-900/80">Quyền chỉnh sửa được tạm khóa theo quy trình xét duyệt. Bạn có thể thu hồi duyệt để sửa lại nội dung hoặc hình ảnh.</p>
+                <h4 className="text-label-sm font-bold text-amber-950">Post has been approved (Approved)</h4>
+                <p className="text-body-sm text-amber-900/80">Direct editing is temporarily locked by approval workflow. You can revoke approval to edit content or media.</p>
               </div>
             </div>
             <button
@@ -355,7 +355,7 @@ export default function ContentDetailPage() {
               className="px-4 py-2 rounded-xl bg-amber-600 text-white text-label-sm font-semibold hover:bg-amber-700 transition-all shrink-0 active:scale-[0.97] flex items-center justify-center gap-1.5 shadow-sm"
             >
               <span className="material-symbols-outlined text-[16px]">undo</span>
-              Thu hồi duyệt &amp; Sửa bài
+              Revoke approval &amp; Edit post
             </button>
           </div>
         )}
@@ -375,10 +375,10 @@ export default function ContentDetailPage() {
                     disabled={saving}
                     onClick={handleWithdrawAndEdit}
                     className="px-4 py-2 rounded-xl bg-amber-500/15 text-amber-800 border border-amber-300 hover:bg-amber-500/25 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5"
-                    title="Thu hồi duyệt để mở khóa quyền chỉnh sửa bài viết"
+                    title="Revoke approval to unlock post editing permissions"
                   >
                     <span className="material-symbols-outlined text-[16px]">edit_note</span>
-                    Thu hồi duyệt để sửa
+                    Revoke approval to edit
                   </button>
                 )}
                 {item.status === "Approved" && (canPublish || canManageSchedules) && (

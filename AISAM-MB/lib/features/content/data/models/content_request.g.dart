@@ -15,8 +15,14 @@ _$CreateContentRequestImpl _$$CreateContentRequestImplFromJson(
   adType: $enumDecode(_$AdTypeEnumEnumMap, json['adType']),
   title: json['title'] as String?,
   textContent: json['textContent'] as String,
+  richTextJson: json['richTextJson'] as String?,
+  richTextVersion: (json['richTextVersion'] as num?)?.toInt(),
   imageUrl: json['imageUrl'] as String?,
+  imageUrls: (json['imageUrls'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   videoUrl: json['videoUrl'] as String?,
+  thumbnailUrl: json['thumbnailUrl'] as String?,
   styleDescription: json['styleDescription'] as String?,
   contextDescription: json['contextDescription'] as String?,
   representativeCharacter: json['representativeCharacter'] as String?,
@@ -34,8 +40,12 @@ Map<String, dynamic> _$$CreateContentRequestImplToJson(
   'adType': _$AdTypeEnumEnumMap[instance.adType]!,
   'title': instance.title,
   'textContent': instance.textContent,
+  'richTextJson': instance.richTextJson,
+  'richTextVersion': instance.richTextVersion,
   'imageUrl': instance.imageUrl,
+  'imageUrls': instance.imageUrls,
   'videoUrl': instance.videoUrl,
+  'thumbnailUrl': instance.thumbnailUrl,
   'styleDescription': instance.styleDescription,
   'contextDescription': instance.contextDescription,
   'representativeCharacter': instance.representativeCharacter,
@@ -64,10 +74,20 @@ const _$ContentStatusEnumEnumMap = {
 _$UpdateContentRequestImpl _$$UpdateContentRequestImplFromJson(
   Map<String, dynamic> json,
 ) => _$UpdateContentRequestImpl(
+  productId: json['productId'] as String?,
+  adType: $enumDecodeNullable(_$AdTypeEnumEnumMap, json['adType']),
   title: json['title'] as String?,
   textContent: json['textContent'] as String?,
+  richTextJson: json['richTextJson'] as String?,
+  richTextVersion: (json['richTextVersion'] as num?)?.toInt(),
   imageUrl: json['imageUrl'] as String?,
+  imageUrls: (json['imageUrls'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   videoUrl: json['videoUrl'] as String?,
+  styleDescription: json['styleDescription'] as String?,
+  contextDescription: json['contextDescription'] as String?,
+  representativeCharacter: json['representativeCharacter'] as String?,
   status: $enumDecodeNullable(_$ContentStatusEnumEnumMap, json['status']),
   tags: (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList(),
 );
@@ -75,10 +95,18 @@ _$UpdateContentRequestImpl _$$UpdateContentRequestImplFromJson(
 Map<String, dynamic> _$$UpdateContentRequestImplToJson(
   _$UpdateContentRequestImpl instance,
 ) => <String, dynamic>{
+  'productId': instance.productId,
+  'adType': _$AdTypeEnumEnumMap[instance.adType],
   'title': instance.title,
   'textContent': instance.textContent,
+  'richTextJson': instance.richTextJson,
+  'richTextVersion': instance.richTextVersion,
   'imageUrl': instance.imageUrl,
+  'imageUrls': instance.imageUrls,
   'videoUrl': instance.videoUrl,
+  'styleDescription': instance.styleDescription,
+  'contextDescription': instance.contextDescription,
+  'representativeCharacter': instance.representativeCharacter,
   'status': _$ContentStatusEnumEnumMap[instance.status],
   'tags': instance.tags,
 };

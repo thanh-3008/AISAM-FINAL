@@ -63,4 +63,35 @@ describe("useWorkspaces", () => {
     expect(result.current.workspaces).toHaveLength(1);
     expect(result.current.activeWorkspace?.name).toBe("Personal Workspace");
   });
+
+  it("maps workspaceRole from API payload when provided", async () => {
+    vi.mocked(apiClient).mockImplementation(async (endpoint: string) => {
+      if (endpoint === "/workspaces") {
+        return {
+          success: true,
+          data: [
+            {
+              id: "w-hr",
+              name: "HR Workspace",
+              workspaceType: 2,
+              status: 1,
+              currentUserRole: 2,
+              workspaceRole: "WorkspaceManager",
+              createdAt: "",
+              updatedAt: "",
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected endpoint: ${endpoint}`);
+    });
+
+    const { result } = renderHook(() => useWorkspaces());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.workspaces).toHaveLength(1);
+    expect(result.current.workspaces[0].workspaceRole).toBe("WorkspaceManager");
+    expect(result.current.workspaces[0].memberRole).toBe("Manager");
+  });
 });

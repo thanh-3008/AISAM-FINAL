@@ -18,7 +18,7 @@ class TeamScopeField extends ConsumerWidget {
         .watch(rbacContextProvider)
         .when(
           loading: () => const LinearProgressIndicator(),
-          error: (e, _) => Text('Không tải được quyền Team: $e'),
+          error: (e, _) => Text('Failed to load Team permissions: $e'),
           data: (access) {
             if (!access.isV2) return const SizedBox.shrink();
             final ids = access.scopes
@@ -30,8 +30,8 @@ class TeamScopeField extends ConsumerWidget {
               initialValue: ids.contains(value) ? value : null,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Team phụ trách *',
-                helperText: 'Team không thể đổi sau khi tạo nội dung.',
+                labelText: 'Assigned Team *',
+                helperText: 'Team cannot be changed after content creation.',
               ),
               items: ids
                   .map(
@@ -44,7 +44,7 @@ class TeamScopeField extends ConsumerWidget {
               onChanged: onChanged,
               validator: (id) => id != null && ids.contains(id)
                   ? null
-                  : 'Chọn Team được cấp quyền cho Brand này.',
+                  : 'Select an authorized Team for this Brand.',
             );
           },
         );

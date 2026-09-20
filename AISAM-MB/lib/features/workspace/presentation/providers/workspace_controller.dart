@@ -5,6 +5,7 @@ import '../../data/models/workspace_model.dart';
 import '../../data/models/workspace_request.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/state/base_state.dart';
+import '../../../../core/network/rbac_context.dart';
 
 part 'workspace_controller.g.dart';
 
@@ -36,6 +37,7 @@ class WorkspaceController extends _$WorkspaceController {
       final storage = ref.read(secureStorageProvider);
       await storage.saveActiveWorkspaceId(workspaceId);
       await ref.read(activeWorkspaceControllerProvider.notifier).refresh();
+      ref.invalidate(rbacContextProvider);
       return true;
     } catch (e) {
       return false;

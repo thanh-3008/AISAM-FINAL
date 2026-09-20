@@ -67,7 +67,7 @@ it("auto-saves a mixed collection with multiple images and videos", async () => 
   expect(container.querySelector('.aspect-video > img[src="https://cdn.test/photo"]')).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Next media" }));
   expect(screen.getByText("3 / 3")).toBeTruthy();
-  expect(screen.queryByText("Lưu thay đổi")).toBeNull();
+  expect(screen.queryByText("Save changes")).toBeNull();
 });
 it("shows a selected image in the carousel before upload finishes", async () => {
   let finishUpload!: (value: ReturnType<typeof image>) => void;
@@ -188,8 +188,8 @@ it("reorders media and retains the draft on version conflict", async () => {
   mocks.read.mockResolvedValue({ version: "v1", items: [image("a"), image("b")] });
   mocks.save.mockRejectedValue(new Error("MEDIA_VERSION_CONFLICT"));
   render(<MediaComposer contentId="content" canEdit />);
-  const buttons = await screen.findAllByRole("button", { name: "Xuống" }); fireEvent.click(buttons[0]);
-  fireEvent.click(screen.getByText("Lưu thay đổi"));
+  const buttons = await screen.findAllByRole("button", { name: "Down" }); fireEvent.click(buttons[0]);
+  fireEvent.click(screen.getByText("Save changes"));
   await screen.findByRole("alert");
   expect(mocks.save.mock.calls[0][1].items.map((m: { assetId: string }) => m.assetId)).toEqual(["b", "a"]);
   expect(sessionStorage.getItem("aisam-media-draft:actor:workspace:content")).toContain("v1");
@@ -197,9 +197,9 @@ it("reorders media and retains the draft on version conflict", async () => {
 it("restores saved draft media only after explicit review", async () => {
   sessionStorage.setItem("aisam-media-draft:actor:workspace:content", JSON.stringify({ version: "old", items: [image("saved")] }));
   render(<MediaComposer contentId="content" canEdit />);
-  await screen.findByText("Khôi phục");
+  await screen.findByText("Restore");
   expect(screen.queryByRole("img")).toBeNull();
-  fireEvent.click(screen.getByText("Khôi phục"));
+  fireEvent.click(screen.getByText("Restore"));
   await screen.findByRole("img");
   expect(JSON.parse(sessionStorage.getItem("aisam-media-draft:actor:workspace:content")!).version).toBe("v1");
 });

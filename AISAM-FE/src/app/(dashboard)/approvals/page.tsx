@@ -1031,11 +1031,11 @@ export default function ApprovalsPage() {
                                 <button
                                   onClick={() => router.push(`/content/${item.id}`)}
                                   className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors relative group/btn"
-                                  title="Xem quyền đăng và lên lịch"
-                                  aria-label="Xem quyền đăng và lên lịch"
+                                  title="View publishing and scheduling permissions"
+                                  aria-label="View publishing and scheduling permissions"
                                 >
                                   <span className="material-symbols-outlined text-[18px]">event_available</span>
-                                  <span className="absolute -top-8 right-0 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Xem quyền đăng và lên lịch</span>
+                                  <span className="absolute -top-8 right-0 bg-inverse-surface text-inverse-on-surface text-label-2xs px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">View publishing and scheduling permissions</span>
                                 </button>
                               )}
                               {!rbac && isApprovedStatus(item.status) && (canPublish || canManageSchedules) && (
@@ -1485,7 +1485,7 @@ export default function ApprovalsPage() {
                     className="flex-1 border border-primary/25 bg-primary/5 text-primary py-3 rounded-xl text-label-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/10 active:scale-[0.98] transition-all"
                   >
                     <span className="material-symbols-outlined text-[18px]">event_available</span>
-                    Xem quyền đăng và lên lịch
+                    View publishing and scheduling permissions
                   </button>
                 )}
                 {!rbac && isApprovedStatus(drawerItem.status) && (canPublish || canManageSchedules) && (

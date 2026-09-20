@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'api_client.dart';
 import '../../features/workspace/presentation/providers/workspace_controller.dart';
+export '../enums/rbac_enums.dart';
 
 enum WorkspaceRoleV2 { owner, workspaceManager, member }
 
@@ -30,7 +31,7 @@ class RbacContext {
   factory RbacContext.fromJson(Map<String, dynamic> json) {
     final revision = json['revision'];
     if (revision is! String || revision.isEmpty) {
-      throw const FormatException('Thiếu phiên bản quyền.');
+      throw const FormatException('Missing permission revision.');
     }
     if (!json.containsKey('contractVersion') &&
         !json.containsKey('workspaceRole')) {
@@ -45,14 +46,14 @@ class RbacContext {
         role == null ||
         json['scopes'] is! List ||
         json['actions'] is! List) {
-      throw const FormatException('Phiên bản phân quyền chưa được hỗ trợ.');
+      throw const FormatException('Unsupported permission contract version.');
     }
     final scopes = (json['scopes'] as List).map((s) {
       if (s is! Map ||
           s['teamId'] is! String ||
           s['brandId'] is! String ||
           s['channelIds'] is! List) {
-        throw const FormatException('Phạm vi Team không hợp lệ.');
+        throw const FormatException('Invalid Team scope.');
       }
       final teamRole = {
         'Manager': TeamRoleV2.manager,
@@ -60,7 +61,7 @@ class RbacContext {
         'Viewer': TeamRoleV2.viewer,
       }[s['role']];
       if (s['role'] != null && teamRole == null) {
-        throw const FormatException('Vai trò Team không hợp lệ.');
+        throw const FormatException('Invalid Team role.');
       }
       return TeamScope(
         s['teamId'],
@@ -94,7 +95,7 @@ final rbacContextProvider = FutureProvider.autoDispose<RbacContext>((
   ref,
 ) async {
   final workspace = await ref.watch(activeWorkspaceControllerProvider.future);
-  if (workspace == null) throw StateError('Chọn workspace trước.');
+  if (workspace == null) throw StateError('Please select a workspace first.');
   final timer = Timer(const Duration(seconds: 60), ref.invalidateSelf);
   ref.onDispose(timer.cancel);
   final response = await ref.watch(dioProvider).get('/permissions/context');

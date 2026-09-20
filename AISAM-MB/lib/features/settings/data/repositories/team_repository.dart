@@ -104,14 +104,17 @@ class TeamRepository {
   Future<void> inviteWorkspaceMember({
     required String email,
     int role = 3,
+    int? workspaceRole,
     int quotaMode = 1,
     int? creditLimit,
   }) async {
     try {
+      final wsRole = workspaceRole ?? (role == 2 ? 2 : 3);
       await _dio.post(
         '/workspace-invitations',
         data: {
           'email': email.trim(),
+          'workspaceRole': wsRole,
           'role': role,
           'quotaMode': quotaMode,
           if (creditLimit != null && creditLimit > 0) 'creditLimit': creditLimit,

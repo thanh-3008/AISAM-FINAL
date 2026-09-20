@@ -8,6 +8,8 @@ import '../../../notifications/data/notification_api_client.dart';
 import '../../data/models/auth_request.dart';
 import '../../data/models/auth_response.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../../workspace/presentation/providers/workspace_controller.dart';
+import '../../../../core/network/rbac_context.dart';
 
 part 'auth_controller.g.dart';
 
@@ -114,6 +116,8 @@ class AuthController extends _$AuthController {
       final repository = ref.read(authRepositoryProvider);
       await repository.logout();
     } finally {
+      ref.read(activeWorkspaceControllerProvider.notifier).clear();
+      ref.invalidate(rbacContextProvider);
       state = const BaseState.initial();
     }
   }

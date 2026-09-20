@@ -3,7 +3,6 @@ import 'enums.dart';
 import 'dart:convert';
 
 part 'content_model.freezed.dart';
-part 'content_model.g.dart';
 
 @freezed
 class ContentResponseModel with _$ContentResponseModel {
@@ -13,11 +12,17 @@ class ContentResponseModel with _$ContentResponseModel {
     required String brandId,
     String? workspaceId,
     String? brandName,
+    String? creatorId,
+    String? creatorName,
     String? productId,
+    String? teamId,
     required AdTypeEnum adType,
     String? title,
     @Default('') String textContent,
+    String? richTextJson,
+    int? richTextVersion,
     String? imageUrl,
+    List<String>? imageUrls,
     String? videoUrl,
     String? thumbnailUrl,
     String? tags,
@@ -112,39 +117,67 @@ class ContentResponseModel with _$ContentResponseModel {
         json['textContent']?.toString() ??
         '';
 
-    return _$$ContentResponseModelImplFromJson({
-      ...json,
-      'id': json['id']?.toString() ?? '',
-      'profileId': json['profileId']?.toString() ?? '',
-      'brandId': json['brandId']?.toString() ?? '',
-      'workspaceId': json['workspaceId']?.toString(),
-      'brandName': json['brandName']?.toString(),
-      'productId': json['productId']?.toString(),
-      'adType': adTypeInt,
-      'title': json['title']?.toString(),
-      'textContent': textContent,
-      'imageUrl': json['imageUrl']?.toString(),
-      'videoUrl': json['videoUrl']?.toString(),
-      'thumbnailUrl': json['thumbnailUrl']?.toString(),
-      'tags': json['tags'] is List
+    List<String>? parsedImageUrls;
+    if (json['imageUrls'] is List) {
+      parsedImageUrls = (json['imageUrls'] as List)
+          .map((e) => e.toString())
+          .where((v) {
+            final uri = Uri.tryParse(v);
+            return uri != null && ['https', 'http'].contains(uri.scheme);
+          })
+          .toList();
+    }
+
+    final createdAt = DateTime.tryParse(createdAtRaw) ?? DateTime.now();
+    final updatedAt = DateTime.tryParse(updatedAtRaw) ?? createdAt;
+
+    return ContentResponseModel(
+      id: json['id']?.toString() ?? '',
+      profileId: json['profileId']?.toString() ?? '',
+      brandId: json['brandId']?.toString() ?? '',
+      workspaceId: json['workspaceId']?.toString(),
+      brandName: json['brandName']?.toString(),
+      creatorId: json['creatorId']?.toString(),
+      creatorName: json['creatorName']?.toString(),
+      productId: json['productId']?.toString(),
+      teamId: json['teamId']?.toString(),
+      adType: (adTypeInt >= 0 && adTypeInt < AdTypeEnum.values.length)
+          ? AdTypeEnum.values[adTypeInt]
+          : AdTypeEnum.textOnly,
+      title: json['title']?.toString(),
+      textContent: textContent,
+      richTextJson: json['richTextJson']?.toString(),
+      richTextVersion: json['richTextVersion'] is int
+          ? json['richTextVersion'] as int
+          : int.tryParse(json['richTextVersion']?.toString() ?? ''),
+      imageUrl: json['imageUrl']?.toString(),
+      imageUrls: parsedImageUrls,
+      videoUrl: json['videoUrl']?.toString(),
+      thumbnailUrl: json['thumbnailUrl']?.toString(),
+      tags: json['tags'] is List
           ? (json['tags'] as List).join(', ')
           : json['tags']?.toString(),
-      'styleDescription': json['styleDescription']?.toString(),
-      'contextDescription': json['contextDescription']?.toString(),
-      'representativeCharacter': json['representativeCharacter']?.toString(),
-      'rejectionReason': json['rejectionReason']?.toString(),
-      'platformRejectionReason': json['platformRejectionReason']?.toString(),
-      'rejectedPlatform': json['rejectedPlatform']?.toString(),
-      'isAiGenerated': isAi,
-      'status': statusInt,
-      'createdAt': createdAtRaw,
-      'updatedAt': updatedAtRaw,
-    });
+      styleDescription: json['styleDescription']?.toString(),
+      contextDescription: json['contextDescription']?.toString(),
+      representativeCharacter: json['representativeCharacter']?.toString(),
+      rejectionReason: json['rejectionReason']?.toString(),
+      platformRejectionReason: json['platformRejectionReason']?.toString(),
+      rejectedPlatform: json['rejectedPlatform']?.toString(),
+      isAiGenerated: isAi,
+      status: (statusInt >= 0 && statusInt < ContentStatusEnum.values.length)
+          ? ContentStatusEnum.values[statusInt]
+          : ContentStatusEnum.draft,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
   }
 }
 
 extension ContentMediaCompatibility on ContentResponseModel {
   List<String> get legacyImageUrls {
+    if (imageUrls != null && imageUrls!.isNotEmpty) {
+      return imageUrls!;
+    }
     final raw=imageUrl;
     if(raw==null || raw.isEmpty) return [];
     dynamic value=raw;

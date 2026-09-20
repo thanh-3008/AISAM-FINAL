@@ -13,6 +13,7 @@ export interface TeamMember {
   email: string;
   avatar: string | null;
   role: MemberRole;
+  workspaceRole?: string | null;
   status: MemberStatus;
   teamIds: string[];
   lastActive: string;
@@ -127,6 +128,7 @@ interface BEWorkspaceMemberDto {
   email: string;
   fullName: string | null;
   role: number;
+  workspaceRole?: string | null;
   quotaMode: number;
   creditLimit: number | null;
   creditUsed: number;
@@ -167,6 +169,7 @@ function mapMember(dto: BEWorkspaceMemberDto): TeamMember {
     email: dto.email,
     avatar: null,
     role: mapRole(dto.role),
+    workspaceRole: dto.workspaceRole ?? null,
     status: "Active",
     teamIds: [],
     lastActive: dto.joinedAt,

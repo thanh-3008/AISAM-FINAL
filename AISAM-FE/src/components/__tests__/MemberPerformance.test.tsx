@@ -8,7 +8,7 @@ vi.mock("next/link",()=>({default:({children}:{children:React.ReactNode})=><span
 afterEach(()=>{cleanup();vi.clearAllMocks();});
 it("shows missing insight values instead of fabricated zero and sends scoped filters",async()=>{
   vi.mocked(apiClient).mockResolvedValue({success:true,data:{items:[{memberId:"c",name:"Creator",contentsCreated:2,creatorPublishedPosts:1,publisherPublishedPosts:0,approvalRate:null,turnaroundHours:null,onTimeRate:null,failedPublishRate:null,pendingSchedules:0,completedSchedules:0,failedSchedules:0,postsWithInsights:0,engagement:null,impressions:null,reach:null,engagementRate:null,insightsUpdatedAt:null}],total:1,updatedAt:"2026-09-08T00:00:00Z",unattributedContents:null,brands:[{id:"alpha",name:"Alpha"}],teams:[],members:[{id:"c",name:"Creator"}],metricDefinitions:{period:"UTC"}}});
-  render(<Page/>);await screen.findByText("Chưa đồng bộ");expect(screen.getAllByText("Chưa đủ dữ liệu").length).toBeGreaterThan(1);
+  render(<Page/>);await screen.findByText("Not synced");expect(screen.getAllByText("Insufficient data").length).toBeGreaterThan(1);
   fireEvent.change(screen.getByLabelText("Brand"),{target:{value:"alpha"}});
   await waitFor(()=>expect(apiClient).toHaveBeenLastCalledWith(expect.stringContaining("brandId=alpha")));
 });
@@ -24,9 +24,9 @@ it("renders API JSON with omitted nullable metrics without crashing", async () =
     total:1,updatedAt:"2026-09-08T00:00:00Z",brands:[],teams:[],members:[],metricDefinitions:{}
   }});
   render(<Page/>);
-  await screen.findByText("Chưa đồng bộ");
-  expect(screen.getAllByText("Chưa đủ dữ liệu")).toHaveLength(8);
-  expect(screen.queryByText(/Nội dung chưa xác định Creator:/)).toBeNull();
+  await screen.findByText("Not synced");
+  expect(screen.getAllByText("Insufficient data")).toHaveLength(8);
+  expect(screen.queryByText(/Contents with unattributed Creator:/)).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByRole("meter").getAttribute("value")).toBe("2");
 });

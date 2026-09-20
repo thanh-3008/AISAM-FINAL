@@ -13,8 +13,12 @@ class CreateContentRequest with _$CreateContentRequest {
     required AdTypeEnum adType,
     String? title,
     required String textContent,
+    String? richTextJson,
+    int? richTextVersion,
     String? imageUrl,
+    List<String>? imageUrls,
     String? videoUrl,
+    String? thumbnailUrl,
     String? styleDescription,
     String? contextDescription,
     String? representativeCharacter,
@@ -30,10 +34,18 @@ class CreateContentRequest with _$CreateContentRequest {
 @freezed
 class UpdateContentRequest with _$UpdateContentRequest {
   const factory UpdateContentRequest({
+    String? productId,
+    AdTypeEnum? adType,
     String? title,
     String? textContent,
+    String? richTextJson,
+    int? richTextVersion,
     String? imageUrl,
+    List<String>? imageUrls,
     String? videoUrl,
+    String? styleDescription,
+    String? contextDescription,
+    String? representativeCharacter,
     ContentStatusEnum? status,
     List<String>? tags,
   }) = _UpdateContentRequest;

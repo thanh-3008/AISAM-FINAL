@@ -1,19 +1,24 @@
 "use client";
 
 import { type TeamMember } from "@/services/teamService";
+import { getRoleLabel } from "@/lib/roleLabels";
 
 const ROLE_COLORS: Record<string, string> = {
   Owner: "#004ccd",
+  WorkspaceManager: "#731be5",
   Manager: "#731be5",
   ContentCreator: "#9e3100",
   Viewer: "#737687",
+  Member: "#737687",
 };
 
 const ROLE_LABELS: Record<string, string> = {
   Owner: "Owner",
-  Manager: "Manager",
+  WorkspaceManager: "Workspace Manager",
+  Manager: "Team Manager",
   ContentCreator: "Content Creator",
   Viewer: "Viewer",
+  Member: "Member",
 };
 
 interface RoleDonutChartProps {
@@ -22,7 +27,8 @@ interface RoleDonutChartProps {
 
 export default function RoleDonutChart({ members }: RoleDonutChartProps) {
   const roleCounts = members.reduce<Record<string, number>>((acc, m) => {
-    acc[m.role] = (acc[m.role] || 0) + 1;
+    const roleKey = m.workspaceRole || m.role;
+    acc[roleKey] = (acc[roleKey] || 0) + 1;
     return acc;
   }, {});
 
@@ -31,7 +37,7 @@ export default function RoleDonutChart({ members }: RoleDonutChartProps) {
 
   const roles = Object.entries(roleCounts)
     .map(([role, count]) => ({
-      name: ROLE_LABELS[role] || role,
+      name: getRoleLabel(role) || ROLE_LABELS[role] || role,
       count,
       color: ROLE_COLORS[role] || "#737687",
     }))

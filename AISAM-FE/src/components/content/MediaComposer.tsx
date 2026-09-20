@@ -268,9 +268,9 @@ export default function MediaComposer({ contentId, canEdit, onSaved, onDirtyChan
 
     {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-label-xs text-red-600">{error}</p>}
     {recovery && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-label-xs text-amber-800">
-      <span>Tìm thấy bản nháp có {recovery.items.length} file.</span>
-      <button type="button" className="font-semibold underline" disabled={!canEdit || busy} onClick={() => { change({ ...recovery, version: collection!.version }); setRecovery(null); }}>Khôi phục</button>
-      <button type="button" className="font-semibold underline" onClick={() => { sessionStorage.removeItem(key); setRecovery(null); }}>Bỏ qua</button>
+      <span>Found draft with {recovery.items.length} files.</span>
+      <button type="button" className="font-semibold underline" disabled={!canEdit || busy} onClick={() => { change({ ...recovery, version: collection!.version }); setRecovery(null); }}>Restore</button>
+      <button type="button" className="font-semibold underline" onClick={() => { sessionStorage.removeItem(key); setRecovery(null); }}>Dismiss</button>
     </div>}
 
     {!compact && collection && collection.items.length > 0 && <ol className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -278,12 +278,12 @@ export default function MediaComposer({ contentId, canEdit, onSaved, onDirtyChan
         <div className="aspect-square">
           {item.mimeType.startsWith("video/") ? <video src={item.url} controls preload="metadata" className="h-full w-full object-cover" /> : <img src={item.url} alt={item.altText ?? `Media ${index + 1}`} className="h-full w-full object-cover" />}
         </div>
-        <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold text-white">{item.isCover ? "Ảnh bìa" : index + 1}</span>
+        <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold text-white">{item.isCover ? "Cover" : index + 1}</span>
         {canEdit && <div className="flex items-center justify-center gap-1 border-t border-outline-variant/20 bg-surface-container-lowest p-1.5">
-          <button type="button" title="Lên" aria-label="Lên" className="material-symbols-outlined rounded p-1 text-[18px] disabled:opacity-30" disabled={busy || index === 0} onClick={() => move(index, index - 1)}>arrow_back</button>
-          <button type="button" title="Xuống" aria-label="Xuống" className="material-symbols-outlined rounded p-1 text-[18px] disabled:opacity-30" disabled={busy || index === collection.items.length - 1} onClick={() => move(index, index + 1)}>arrow_forward</button>
-          <button type="button" title="Đặt làm ảnh bìa" aria-label="Đặt cover" className="material-symbols-outlined rounded p-1 text-[18px] disabled:opacity-30" disabled={busy || item.isCover} onClick={() => change({ ...collection, items: collection.items.map(m => ({ ...m, isCover: m.assetId === item.assetId })) })}>star</button>
-          <button type="button" title="Xóa" aria-label="Bỏ media" className="material-symbols-outlined rounded p-1 text-[18px] text-red-500 disabled:opacity-30" disabled={busy} onClick={() => change({ ...collection, items: collection.items.filter(m => m.assetId !== item.assetId) })}>delete</button>
+          <button type="button" title="Up" aria-label="Up" className="material-symbols-outlined rounded p-1 text-[18px] disabled:opacity-30" disabled={busy || index === 0} onClick={() => move(index, index - 1)}>arrow_back</button>
+          <button type="button" title="Down" aria-label="Down" className="material-symbols-outlined rounded p-1 text-[18px] disabled:opacity-30" disabled={busy || index === collection.items.length - 1} onClick={() => move(index, index + 1)}>arrow_forward</button>
+          <button type="button" title="Set as cover" aria-label="Set cover" className="material-symbols-outlined rounded p-1 text-[18px] disabled:opacity-30" disabled={busy || item.isCover} onClick={() => change({ ...collection, items: collection.items.map(m => ({ ...m, isCover: m.assetId === item.assetId })) })}>star</button>
+          <button type="button" title="Remove" aria-label="Remove media" className="material-symbols-outlined rounded p-1 text-[18px] text-red-500 disabled:opacity-30" disabled={busy} onClick={() => change({ ...collection, items: collection.items.filter(m => m.assetId !== item.assetId) })}>delete</button>
         </div>}
       </li>)}
     </ol>}
@@ -354,8 +354,8 @@ export default function MediaComposer({ contentId, canEdit, onSaved, onDirtyChan
 
     {canEdit && <div className="flex flex-wrap justify-end gap-2">
       {files.some(f => f.status === "Failed") && <button type="button" className="rounded-lg border border-outline-variant/30 px-3 py-2 text-label-sm font-semibold" disabled={busy || !collection} onClick={() => void retryFailedFiles()}>Retry failed files</button>}
-      {!compact && collection?.items.length === 0 && <button type="button" className="rounded-lg border border-outline-variant/30 px-3 py-2 text-label-sm font-semibold" disabled={busy} onClick={async () => { setBusy(true); try { setCollection(await importLegacyMedia(contentId, collection.version)); onSaved?.(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }}>Dùng media cũ</button>}
-      {!autoSave && dirty && <button type="button" className="rounded-lg bg-primary px-4 py-2 text-label-sm font-semibold text-on-primary disabled:opacity-60" disabled={busy || !collection || pendingFiles.length > 0} onClick={save}>Lưu thay đổi</button>}
+      {!compact && collection?.items.length === 0 && <button type="button" className="rounded-lg border border-outline-variant/30 px-3 py-2 text-label-sm font-semibold" disabled={busy} onClick={async () => { setBusy(true); try { setCollection(await importLegacyMedia(contentId, collection.version)); onSaved?.(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }}>Use legacy media</button>}
+      {!autoSave && dirty && <button type="button" className="rounded-lg bg-primary px-4 py-2 text-label-sm font-semibold text-on-primary disabled:opacity-60" disabled={busy || !collection || pendingFiles.length > 0} onClick={save}>Save changes</button>}
     </div>}
   </section>;
 }
