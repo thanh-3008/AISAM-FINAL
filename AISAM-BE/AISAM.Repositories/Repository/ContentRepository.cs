@@ -109,6 +109,11 @@ public sealed class ContentRepository : IContentRepository
                 IsAiGenerated = c.IsAiGenerated,
                 PlatformRejectionReason = c.PlatformRejectionReason,
                 RejectedPlatform = c.RejectedPlatform,
+                RejectionReason = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.Notes).FirstOrDefault() : null,
+                RejectedByUserId = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ApproverUserId).FirstOrDefault() : null,
+                RejectedByName = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ReviewerNameSnapshot ?? (a.ApproverUser != null ? a.ApproverUser.FullName ?? a.ApproverUser.Email : null)).FirstOrDefault() : null,
+                RejectedByRole = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ReviewerRoleSnapshot).FirstOrDefault() : null,
+                RejectedAt = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => (DateTime?)(a.ApprovedAt ?? a.CreatedAt)).FirstOrDefault() : null,
                 Status = c.Status,
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
@@ -180,6 +185,11 @@ public sealed class ContentRepository : IContentRepository
             IsAiGenerated = c.IsAiGenerated,
             PlatformRejectionReason = c.PlatformRejectionReason,
             RejectedPlatform = c.RejectedPlatform,
+            RejectionReason = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.Notes).FirstOrDefault() : null,
+            RejectedByUserId = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ApproverUserId).FirstOrDefault() : null,
+            RejectedByName = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ReviewerNameSnapshot ?? (a.ApproverUser != null ? a.ApproverUser.FullName ?? a.ApproverUser.Email : null)).FirstOrDefault() : null,
+            RejectedByRole = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ReviewerRoleSnapshot).FirstOrDefault() : null,
+            RejectedAt = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => (DateTime?)(a.ApprovedAt ?? a.CreatedAt)).FirstOrDefault() : null,
             Status = c.Status,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
@@ -334,6 +344,11 @@ public sealed class ContentRepository : IContentRepository
                 IsAiGenerated = c.IsAiGenerated,
                 PlatformRejectionReason = c.PlatformRejectionReason,
                 RejectedPlatform = c.RejectedPlatform,
+                RejectionReason = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.Notes).FirstOrDefault() : null,
+                RejectedByUserId = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ApproverUserId).FirstOrDefault() : null,
+                RejectedByName = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ReviewerNameSnapshot ?? (a.ApproverUser != null ? a.ApproverUser.FullName ?? a.ApproverUser.Email : null)).FirstOrDefault() : null,
+                RejectedByRole = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => a.ReviewerRoleSnapshot).FirstOrDefault() : null,
+                RejectedAt = c.Status == ContentStatusEnum.Rejected ? c.Approvals.Where(a => !a.IsDeleted && a.Status == ContentStatusEnum.Rejected).OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt).Select(a => (DateTime?)(a.ApprovedAt ?? a.CreatedAt)).FirstOrDefault() : null,
                 Status = c.Status,
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
@@ -384,7 +399,8 @@ public sealed class ContentRepository : IContentRepository
             .Include(content => content.Brand)
             .Include(content => content.Product)
             .Include(content => content.PrimaryCreator)
-            .Include(content => content.Approvals);
+            .Include(content => content.Approvals)
+                .ThenInclude(approval => approval.ApproverUser);
     }
 
     private async Task PopulateTeamNameAsync(Content? content, CancellationToken cancellationToken)

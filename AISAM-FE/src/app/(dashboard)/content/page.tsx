@@ -715,6 +715,12 @@ export default function ContentPage() {
                             <span className="material-symbols-outlined text-[16px] text-outline">person</span>
                             <span className="max-w-36 truncate">{item.creatorName}</span>
                           </span>
+                          {item.status === "Rejected" && item.rejectedByName && (
+                            <span className="mt-1 flex max-w-44 items-center gap-1 text-[10px] text-danger-red" title={`${item.rejectedByName}${item.rejectedByRole ? ` · ${item.rejectedByRole}` : ""}`}>
+                              <span className="material-symbols-outlined text-[12px]">block</span>
+                              <span className="truncate">Từ chối bởi {item.rejectedByName}</span>
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5">
                           <span className={`px-2 py-0.5 rounded-md text-label-xs font-semibold ${getTypeConfig(item.type).color}`}>{item.type}</span>
@@ -1230,6 +1236,12 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction,
             <span className="material-symbols-outlined text-[14px] text-outline">person</span>
             <span className="truncate">{item.creatorName}</span>
           </div>
+          {item.status === "Rejected" && item.rejectedByName && (
+            <div className="mb-3 flex items-center gap-1.5 rounded-lg bg-danger-red/5 px-2.5 py-2 text-[11px] text-danger-red" title={item.rejectedByRole}>
+              <span className="material-symbols-outlined text-[14px]">block</span>
+              <span className="truncate">Từ chối bởi <strong>{item.rejectedByName}</strong>{item.rejectedByRole ? ` · ${item.rejectedByRole}` : ""}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-3">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold ${STATUS_STYLES[item.status]}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Published" ? "bg-emerald-500 animate-pulse" : item.status === "Scheduled" ? "bg-blue-500" : item.status === "Awaiting Approval" ? "bg-amber-500" : item.status === "Failed" ? "bg-danger-red" : "bg-outline"}`} />

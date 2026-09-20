@@ -7,6 +7,7 @@ using AISAM.Data.Model;
 using AISAM.Repositories;
 using AISAM.Services.IServices;
 using Microsoft.EntityFrameworkCore;
+using AISAM.Services.Utilities;
 
 namespace AISAM.Services.Service;
 
@@ -157,7 +158,19 @@ public sealed class AutomationApprovalService : IAutomationApprovalService
         if (item.Content is not null)
         {
             item.Content.Status = ContentStatusEnum.Rejected;
-            _context.Approvals.Add(new Approval { ContentId = item.Content.Id, ApproverProfileId = plan.ProfileId, ApproverUserId = approverUserId, Status = ContentStatusEnum.Rejected, Notes = item.LastError });
+            var reviewer = await ApprovalReviewerSnapshotResolver.ResolveAsync(
+                _context, workspaceId, item.Content.TeamId, approverUserId, cancellationToken);
+            _context.Approvals.Add(new Approval
+            {
+                ContentId = item.Content.Id,
+                ApproverProfileId = plan.ProfileId,
+                ApproverUserId = approverUserId,
+                ReviewerNameSnapshot = reviewer.Name,
+                ReviewerRoleSnapshot = reviewer.Role,
+                Status = ContentStatusEnum.Rejected,
+                ApprovedAt = DateTime.UtcNow,
+                Notes = item.LastError
+            });
         }
         var previousReview=_context.PermissionReviewContentId;
         try { _context.PermissionReviewContentId=item.ContentId; await FinishPlanAsync(plan, cancellationToken); }

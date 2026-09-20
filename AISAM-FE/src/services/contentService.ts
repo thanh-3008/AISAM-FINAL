@@ -54,6 +54,10 @@ export interface ContentApiItem {
   isAiGenerated: boolean;
   tags: string | null;
   rejectionReason?: string | null;
+  rejectedByUserId?: string | null;
+  rejectedByName?: string | null;
+  rejectedByRole?: string | null;
+  rejectedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -82,6 +86,11 @@ export interface ContentItem {
   tags: string[];
   hashtags: string[];
   isAiGenerated: boolean;
+  rejectionReason?: string;
+  rejectedByUserId?: string;
+  rejectedByName?: string;
+  rejectedByRole?: string;
+  rejectedAt?: string;
 }
 
 export interface ContentDetail {
@@ -113,6 +122,10 @@ export interface ContentDetail {
   caption?: string;
   ctaLink?: string;
   rejectionReason?: string;
+  rejectedByUserId?: string;
+  rejectedByName?: string;
+  rejectedByRole?: string;
+  rejectedAt?: string;
   scheduledAt?: string;
   internalNotes?: string;
   hashtags?: string[];
@@ -308,6 +321,11 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
     isAiGenerated: api.isAiGenerated,
+    rejectionReason: api.rejectionReason || undefined,
+    rejectedByUserId: api.rejectedByUserId || undefined,
+    rejectedByName: api.rejectedByName || undefined,
+    rejectedByRole: api.rejectedByRole || undefined,
+    rejectedAt: api.rejectedAt || undefined,
   };
 }
 
@@ -338,6 +356,10 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     tags: api.tags ? JSON.parse(api.tags) : [],
     hashtags: [],
     rejectionReason: api.rejectionReason || undefined,
+    rejectedByUserId: api.rejectedByUserId || undefined,
+    rejectedByName: api.rejectedByName || undefined,
+    rejectedByRole: api.rejectedByRole || undefined,
+    rejectedAt: api.rejectedAt || undefined,
   };
 }
 

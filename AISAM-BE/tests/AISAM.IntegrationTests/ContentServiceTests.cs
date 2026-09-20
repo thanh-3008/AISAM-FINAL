@@ -193,6 +193,8 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var rejectedAt = DateTime.UtcNow;
         var brand = CreateBrand(profileId);
         var content = new Content 
         { 
@@ -204,7 +206,16 @@ public class ContentServiceTests
             Approvals = new List<Approval>
             {
                 new Approval { Status = ContentStatusEnum.Rejected, Notes = "Old rejection", CreatedAt = DateTime.UtcNow.AddDays(-1) },
-                new Approval { Status = ContentStatusEnum.Rejected, Notes = "New rejection", CreatedAt = DateTime.UtcNow }
+                new Approval
+                {
+                    Status = ContentStatusEnum.Rejected,
+                    Notes = "New rejection",
+                    ApproverUserId = reviewerId,
+                    ReviewerNameSnapshot = "Nguyen Reviewer",
+                    ReviewerRoleSnapshot = "Quản lý Team · Growth",
+                    ApprovedAt = rejectedAt,
+                    CreatedAt = rejectedAt
+                }
             }
         };
         var repository = new FakeContentRepository(content);
@@ -214,6 +225,10 @@ public class ContentServiceTests
         
         Assert.True(result.Success);
         Assert.Equal("New rejection", result.Data!.RejectionReason);
+        Assert.Equal(reviewerId, result.Data.RejectedByUserId);
+        Assert.Equal("Nguyen Reviewer", result.Data.RejectedByName);
+        Assert.Equal("Quản lý Team · Growth", result.Data.RejectedByRole);
+        Assert.Equal(rejectedAt, result.Data.RejectedAt);
     }
 
     [Fact]
@@ -355,6 +370,22 @@ public class ContentServiceTests
     {
         var profileId = Guid.NewGuid();
         var workspaceId = Guid.NewGuid();
+        var reviewer = new User { Email = "owner@example.test", FullName = "Workspace Owner" };
+        await using var context = new AisamContext(
+            new DbContextOptionsBuilder<AisamContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+                .Options);
+        context.AddRange(
+            new Workspace { Id = workspaceId },
+            reviewer,
+            new WorkspaceMember
+            {
+                WorkspaceId = workspaceId,
+                UserId = reviewer.Id,
+                Role = WorkspaceMemberRoleEnum.Owner,
+                WorkspaceRoleV2 = WorkspaceRoleV2.Owner
+            });
+        await context.SaveChangesAsync();
         var brand = CreateBrand(profileId);
         var content = new Content
         {
@@ -369,13 +400,18 @@ public class ContentServiceTests
         };
         var repository = new FakeContentRepository(content);
         var notifications = new FakeNotificationRepository();
-        var service = CreateService(repository, new FakeBrandRepository(brand), notificationRepository: notifications);
+        var service = CreateService(repository, new FakeBrandRepository(brand), notificationRepository: notifications, context: context);
 
-        var result = await service.RejectAsync(content.Id, workspaceId, Guid.NewGuid(), "Fix the CTA");
+        var result = await service.RejectAsync(content.Id, workspaceId, reviewer.Id, "Fix the CTA");
 
         Assert.True(result.Success);
         var approval = Assert.Single(content.Approvals);
         Assert.Equal("Fix the CTA", approval.Notes);
+        Assert.Equal("Workspace Owner", approval.ReviewerNameSnapshot);
+        Assert.Equal("Chủ workspace", approval.ReviewerRoleSnapshot);
+        Assert.NotNull(approval.ApprovedAt);
+        Assert.Equal("Workspace Owner", result.Data!.RejectedByName);
+        Assert.Equal("Chủ workspace", result.Data.RejectedByRole);
         var notification = Assert.Single(notifications.Notifications);
         Assert.Equal(profileId, notification.ProfileId);
         Assert.Contains("Fix the CTA", notification.Message);

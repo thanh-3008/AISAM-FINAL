@@ -22,6 +22,11 @@ public sealed class ContentListDto
     public bool IsAiGenerated { get; set; }
     public string? PlatformRejectionReason { get; set; }
     public string? RejectedPlatform { get; set; }
+    public string? RejectionReason { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public string? RejectedByName { get; set; }
+    public string? RejectedByRole { get; set; }
+    public DateTime? RejectedAt { get; set; }
     public ContentStatusEnum Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

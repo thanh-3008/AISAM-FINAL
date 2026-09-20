@@ -329,12 +329,22 @@ export default function ContentDetailPage() {
       <Header breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Content Library", href: "/content" }, { label: item.title }]} />
       <main className="ml-0 p-8 h-[calc(100vh-64px)] overflow-y-auto space-y-6">
 
-        {form.status === "Rejected" && form.rejectionReason && (
+        {form.status === "Rejected" && (form.rejectionReason || item.rejectedByName || item.rejectedByRole) && (
           <div className={`bg-danger-red/10 border border-danger-red/20 rounded-xl p-4 flex gap-3 text-danger-red ${visible ? "animate-fade-up" : ""}`}>
             <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">error</span>
             <div>
               <h4 className="text-label-sm font-bold mb-1">Content needs revision</h4>
-              <p className="text-body-sm leading-relaxed whitespace-pre-wrap">{form.rejectionReason}</p>
+              {form.rejectionReason && (
+                <p className="text-body-sm leading-relaxed whitespace-pre-wrap">{form.rejectionReason}</p>
+              )}
+              {(item.rejectedByName || item.rejectedByRole) && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-danger-red/15 pt-3 text-label-xs text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[16px] text-danger-red">person</span>
+                  <span className="font-semibold text-on-surface">{item.rejectedByName || "Người duyệt"}</span>
+                  {item.rejectedByRole && <span>· {item.rejectedByRole}</span>}
+                  {item.rejectedAt && <span>· {new Date(item.rejectedAt).toLocaleString("vi-VN")}</span>}
+                </div>
+              )}
             </div>
           </div>
         )}

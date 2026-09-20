@@ -22,6 +22,15 @@ namespace AISAM.Data.Model
         // New: approver by userId (team member)
         [Column("approver_user_id")]
         public Guid? ApproverUserId { get; set; }
+
+        [MaxLength(255)]
+        [Column("reviewer_name_snapshot")]
+        public string? ReviewerNameSnapshot { get; set; }
+
+        [MaxLength(255)]
+        [Column("reviewer_role_snapshot")]
+        public string? ReviewerRoleSnapshot { get; set; }
+
         [Column("submitted_at")]
         public DateTime? SubmittedAt { get; set; }
         [Column("snapshot_id")] public Guid? SnapshotId {get;set;}

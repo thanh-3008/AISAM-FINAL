@@ -1280,6 +1280,26 @@ export default function ApprovalsPage() {
                     </div>
                   </section>
 
+                  {isRejectedStatus(drawerItem.status) && (drawerItem.rejectionReason || drawerItem.rejectedByName) && (
+                    <section className="rounded-xl border border-danger-red/20 bg-danger-red/5 p-4">
+                      <div className="mb-2 flex items-center gap-2 text-danger-red">
+                        <span className="material-symbols-outlined text-[18px]">block</span>
+                        <h3 className="text-label-sm font-bold">Thông tin từ chối</h3>
+                      </div>
+                      {drawerItem.rejectionReason && (
+                        <p className="whitespace-pre-wrap text-body-sm text-on-surface">{drawerItem.rejectionReason}</p>
+                      )}
+                      {(drawerItem.rejectedByName || drawerItem.rejectedByRole) && (
+                        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-danger-red/15 pt-3 text-label-xs text-on-surface-variant">
+                          <span className="material-symbols-outlined text-[15px] text-danger-red">person</span>
+                          <span className="font-semibold text-on-surface">{drawerItem.rejectedByName || "Người duyệt"}</span>
+                          {drawerItem.rejectedByRole && <span>· {drawerItem.rejectedByRole}</span>}
+                          {drawerItem.rejectedAt && <span>· {new Date(drawerItem.rejectedAt).toLocaleString("vi-VN")}</span>}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
                   {isPublishFailedStatus(drawerItem.status) && (
                     <section>
                       <div className="p-4 rounded-xl bg-danger-red/10 border border-danger-red/20">

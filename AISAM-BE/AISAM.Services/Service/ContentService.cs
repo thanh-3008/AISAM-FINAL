@@ -12,6 +12,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using AISAM.Services.Utilities;
 
 namespace AISAM.Services.Service;
 
@@ -427,11 +428,17 @@ public sealed class ContentService : IContentService
         }
 
         content.Status = ContentStatusEnum.Rejected;
+        var reviewer = _context is null
+            ? null
+            : await ApprovalReviewerSnapshotResolver.ResolveAsync(_context, workspaceId, content.TeamId, approverUserId, cancellationToken);
         AddApproval(content, new Approval
         {
             ContentId = content.Id,
             ApproverUserId = approverUserId,
+            ReviewerNameSnapshot = reviewer?.Name,
+            ReviewerRoleSnapshot = reviewer?.Role,
             Status = ContentStatusEnum.Rejected,
+            ApprovedAt = DateTime.UtcNow,
             SubmittedAt = content.Approvals.Where(a=>!a.IsDeleted && a.Status==ContentStatusEnum.PendingApproval).OrderByDescending(a=>a.SubmittedAt).Select(a=>a.SubmittedAt).FirstOrDefault(),
             Notes = notes
         });
@@ -1090,6 +1097,12 @@ public sealed class ContentService : IContentService
             }
         }
 
+        var rejection = content.Status == ContentStatusEnum.Rejected
+            ? content.Approvals?.Where(a => a.Status == ContentStatusEnum.Rejected && !a.IsDeleted)
+                .OrderByDescending(a => a.ApprovedAt ?? a.CreatedAt)
+                .FirstOrDefault()
+            : null;
+
         return new ContentResponseDto
         {
             Id = content.Id,
@@ -1116,11 +1129,13 @@ public sealed class ContentService : IContentService
             IsAiGenerated = content.IsAiGenerated,
             Tags = content.Tags,
             Status = content.Status,
-            RejectionReason = content.Status == ContentStatusEnum.Rejected 
-                ? content.Approvals?.Where(a => a.Status == ContentStatusEnum.Rejected && !a.IsDeleted)
-                    .OrderByDescending(a => a.CreatedAt)
-                    .FirstOrDefault()?.Notes 
-                : null,
+            RejectionReason = rejection?.Notes,
+            RejectedByUserId = rejection?.ApproverUserId,
+            RejectedByName = rejection?.ReviewerNameSnapshot
+                ?? rejection?.ApproverUser?.FullName
+                ?? rejection?.ApproverUser?.Email,
+            RejectedByRole = rejection?.ReviewerRoleSnapshot,
+            RejectedAt = rejection is null ? null : rejection.ApprovedAt ?? rejection.CreatedAt,
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt
         };
