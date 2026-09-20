@@ -7,6 +7,7 @@ using AISAM.Services.IServices;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using AISAM.Repositories;
 
 namespace AISAM.Services.Service;
 
@@ -25,6 +26,7 @@ public sealed class AnalyticsService : IAnalyticsService
     private readonly IBrandRepository _brandRepo;
     private readonly IContentCalendarRepository _contentCalendarRepo;
     private readonly ILogger<AnalyticsService> _logger;
+    private readonly AisamContext? _context;
 
     public AnalyticsService(
         IPerformanceReportRepository performanceReportRepo,
@@ -34,7 +36,8 @@ public sealed class AnalyticsService : IAnalyticsService
         IMemoryCache cache,
         IBrandRepository brandRepo,
         IContentCalendarRepository contentCalendarRepo,
-        ILogger<AnalyticsService> logger)
+        ILogger<AnalyticsService> logger,
+        AisamContext? context = null)
     {
         _performanceReportRepo = performanceReportRepo;
         _socialIntegrationRepo = socialIntegrationRepo;
@@ -44,6 +47,7 @@ public sealed class AnalyticsService : IAnalyticsService
         _brandRepo = brandRepo;
         _contentCalendarRepo = contentCalendarRepo;
         _logger = logger;
+        _context = context;
     }
 
     public async Task<GenericResponse<ScheduledPublishingPerformanceDto>> GetScheduledPublishingPerformanceAsync(
@@ -96,6 +100,7 @@ public sealed class AnalyticsService : IAnalyticsService
     {
         return new AnalyticsChanges
         {
+            ReachPct = SafeChange(current.Reach, previous.Reach),
             ImpressionsPct = SafeChange(current.Impressions, previous.Impressions),
             EngagementPct = SafeChange(current.Engagement, previous.Engagement),
             CtrPct = SafeChange(current.Ctr, previous.Ctr),
@@ -255,7 +260,10 @@ public sealed class AnalyticsService : IAnalyticsService
         });
 
         _logger.LogInformation("AskAI.RequestStarted");
-        string cacheKey = $"AiRec_v4_json_{workspaceId}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
+        var scopeKey = _context?.PermissionScopeEnabled == true
+            ? $"{_context.PermissionActorId}_{_context.PermissionOwner}_{string.Join(',', _context.PermissionBrandIds.Order())}_{string.Join(',', _context.PermissionTeamIds.Order())}_{string.Join(',', _context.PermissionWriteTeamIds.Order())}_{string.Join(',', _context.PermissionChannelIds.Order())}"
+            : "unscoped";
+        string cacheKey = $"AiRec_v5_json_{workspaceId}_{scopeKey}_{from:yyyyMMdd}_{to:yyyyMMdd}_{brandId}_{platform}";
         var cacheTimer = Stopwatch.StartNew();
         _cache.TryGetValue(cacheKey, out string? cachedResponse);
         var cacheHit = !forceRefresh && !string.IsNullOrEmpty(cachedResponse);

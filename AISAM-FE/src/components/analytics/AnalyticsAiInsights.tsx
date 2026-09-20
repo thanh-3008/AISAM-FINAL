@@ -8,11 +8,13 @@ interface AnalyticsAiInsightsProps {
   dateRange?: DateRange;
   brandId?: string;
   platform?: string;
+  customFrom?: string;
+  customTo?: string;
 }
 
 const COOLDOWN_MS = 8000;
 
-export default function AnalyticsAiInsights({ insights, dateRange, brandId, platform }: AnalyticsAiInsightsProps) {
+export default function AnalyticsAiInsights({ insights, dateRange, brandId, platform, customFrom, customTo }: AnalyticsAiInsightsProps) {
   const [aiResponse, setAiResponse] = useState<AiRecommendationsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export default function AnalyticsAiInsights({ insights, dateRange, brandId, plat
     setAiResponse(null);
     setError(null);
     setLoading(false);
-  }, [dateRange, brandId, platform]);
+  }, [dateRange, brandId, platform, customFrom, customTo]);
 
   useEffect(() => {
     return () => {
@@ -44,7 +46,7 @@ export default function AnalyticsAiInsights({ insights, dateRange, brandId, plat
     const requestController = new AbortController();
     activeRequestRef.current = requestController;
     try {
-      const response = await fetchAiRecommendations(dateRange, forceRefresh, brandId, platform, { signal: requestController.signal });
+      const response = await fetchAiRecommendations(dateRange, forceRefresh, brandId, platform, { signal: requestController.signal }, customFrom, customTo);
       if (activeRequestRef.current !== requestController) return;
       if (response && !response.error) {
         setAiResponse(response);

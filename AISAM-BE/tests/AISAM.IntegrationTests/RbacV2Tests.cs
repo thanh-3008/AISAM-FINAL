@@ -65,6 +65,7 @@ public class RbacV2Tests
         Assert.Contains("content_media",db.Assets.ToQueryString());
         Assert.Contains("approved_snapshot_id",db.PublishSnapshots.ToQueryString());
         Assert.Contains("team_id",db.Posts.ToQueryString());
+        Assert.Contains("social_integrations",db.ContentCalendars.ToQueryString());
     }
     [Theory]
     [InlineData(WorkspaceRoleV2.Owner,true,true)]

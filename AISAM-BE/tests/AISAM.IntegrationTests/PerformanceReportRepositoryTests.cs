@@ -201,4 +201,26 @@ public class PerformanceReportRepositoryTests
         Assert.Equal(15, ig.Engagement);
         Assert.Equal(0m, ig.Spend);
     }
+
+    [Fact]
+    public async Task AggregatesOnlyRequestedPlatformAndUsesFullPreviousPeriod()
+    {
+        var (context, connection) = CreateContext();
+        await using var _ = connection;
+        await using var __ = context;
+        var workspace = Guid.NewGuid();
+        var brand = new Brand { WorkspaceId = workspace };
+        var previousDay = new DateTime(2026, 9, 13, 12, 0, 0, DateTimeKind.Utc);
+        context.AddRange(new Workspace { Id = workspace }, brand,
+            new AdCampaign { WorkspaceId = workspace, BrandId = brand.Id, Platform = "facebook", StartDate = previousDay, EndDate = previousDay, Impressions = 10 },
+            new AdCampaign { WorkspaceId = workspace, BrandId = brand.Id, Platform = "instagram", StartDate = previousDay, EndDate = previousDay, Impressions = 20 });
+        await context.SaveChangesAsync();
+        var repo = new PerformanceReportRepository(context);
+        var from = new DateTime(2026, 9, 14, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 9, 20, 23, 59, 59, 999, DateTimeKind.Utc);
+
+        var previous = await repo.GetAggregatedTotalsForPreviousPeriodAsync(workspace, from, to, platform: "facebook");
+        Assert.Equal(10, previous.Impressions);
+        Assert.Equal(1, previous.ActiveCampaigns);
+    }
 }

@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/apiClient";
-import { fetchCampaigns } from "@/services/campaignService";
+import { fetchCampaigns, type CampaignStatus } from "@/services/campaignService";
 
 export type DateRange = "7d" | "30d" | "90d" | "custom";
 export type ChartView = "daily" | "weekly";
@@ -42,14 +42,23 @@ export interface ScheduledPublishingPoint {
   successRate: number;
 }
 
+export interface PublishingActivityPoint {
+  date: string;
+  published: number;
+  scheduledCompleted: number;
+  failed: number;
+  pending: number;
+  retryAttempts: number;
+  successRate: number;
+}
+
 export interface CampaignPerformance {
   id: string;
   name: string;
-  status: "active" | "paused" | "completed";
-  reach: number;
+  status: Lowercase<CampaignStatus>;
+  impressions: number;
   clicks: number;
   ctr: number;
-  roas: number;
   spend: number;
   conversions: number;
 }
@@ -131,7 +140,7 @@ export interface AnalyticsData {
   channelBreakdown: ChannelBreakdownItem[];
   aiInsights: AiInsight[];
   efficiency: EfficiencyMetric[];
-  scheduledPublishing: ScheduledPublishingPoint[];
+  publishingActivity: PublishingActivityPoint[];
 }
 
 interface GenericResponse<T> {
@@ -169,6 +178,7 @@ interface AnalyticsOverviewResponse {
   dateRange: { from: string; to: string };
   totals: AnalyticsTotals;
   changes: {
+    reachPct: number;
     impressionsPct: number;
     engagementPct: number;
     ctrPct: number;
@@ -212,24 +222,29 @@ interface PaginatedResponse {
   totalPages: number;
 }
 
-function getDateRange(range: DateRange): { from: string; to: string } {
+export function getDateRange(range: DateRange, customFrom?: string, customTo?: string): { from: string; to: string } {
   const to = new Date();
   to.setHours(23, 59, 59, 999);
   const from = new Date();
 
   switch (range) {
     case "7d":
-      from.setDate(from.getDate() - 7);
+      from.setDate(from.getDate() - 6);
       break;
     case "30d":
-      from.setDate(from.getDate() - 30);
+      from.setDate(from.getDate() - 29);
       break;
     case "90d":
-      from.setDate(from.getDate() - 90);
+      from.setDate(from.getDate() - 89);
       break;
     case "custom":
+      if (!customFrom || !customTo || customFrom > customTo) throw new Error("Invalid custom date range");
+      return {
+        from: new Date(`${customFrom}T00:00:00`).toISOString(),
+        to: new Date(`${customTo}T23:59:59.999`).toISOString(),
+      };
     default:
-      from.setDate(from.getDate() - 30);
+      from.setDate(from.getDate() - 29);
       break;
   }
   from.setHours(0, 0, 0, 0);
@@ -252,11 +267,38 @@ function buildFilterQuery(
   return query;
 }
 
+export function combinePublishingActivity(
+  posts: Pick<AnalyticsPoint, "date" | "publishedPosts">[],
+  schedules: ScheduledPublishingPoint[],
+  postCountsAvailable = true
+): PublishingActivityPoint[] {
+  const postsByDate = new Map(posts.map((point) => [point.date, point.publishedPosts]));
+  const schedulesByDate = new Map(schedules.map((point) => [point.date, point]));
+  return [...new Set([...postsByDate.keys(), ...schedulesByDate.keys()])].sort().map((date) => {
+    const schedule = schedulesByDate.get(date);
+    return {
+      date,
+      published: postCountsAvailable ? postsByDate.get(date) ?? 0 : schedule?.completed ?? 0,
+      scheduledCompleted: schedule?.completed ?? 0,
+      failed: schedule?.failed ?? 0,
+      pending: schedule?.pending ?? 0,
+      retryAttempts: schedule?.retryAttempts ?? 0,
+      successRate: schedule?.successRate ?? 0,
+    };
+  });
+}
+
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export async function fetchChannelBreakdown(
   dateRange?: DateRange,
-  brandId?: string
+  brandId?: string,
+  customFrom?: string,
+  customTo?: string
 ): Promise<ChannelBreakdownItem[]> {
-  const { from, to } = getDateRange(dateRange || "30d");
+  const { from, to } = getDateRange(dateRange || "30d", customFrom, customTo);
   const query = buildFilterQuery(from, to, { brandId });
   try {
     const res: GenericResponse<ChannelBreakdownItem[]> = await apiClient(
@@ -286,11 +328,15 @@ export async function fetchTopPosts(
   dateRange?: DateRange,
   metric?: string,
   platform?: string,
-  pageSize?: number
+  pageSize?: number,
+  brandId?: string,
+  customFrom?: string,
+  customTo?: string
 ): Promise<TopPostItem[]> {
-  const { from, to } = getDateRange(dateRange || "30d");
+  const { from, to } = getDateRange(dateRange || "30d", customFrom, customTo);
   let query = `from=${from}&to=${to}&metric=${metric || "engagement"}&pageSize=${pageSize || 10}`;
   if (platform) query += `&platform=${platform}`;
+  if (brandId) query += `&brandId=${encodeURIComponent(brandId)}`;
   try {
     const res: GenericResponse<PaginatedResponse> = await apiClient(
       `/analytics/top-posts?${query}`
@@ -306,9 +352,11 @@ export async function fetchAiRecommendations(
   forceRefresh = false,
   brandId?: string,
   platform?: string,
-  requestOptions?: AiRequestOptions
+  requestOptions?: AiRequestOptions,
+  customFrom?: string,
+  customTo?: string
 ): Promise<AiRecommendationsResponse> {
-  const { from, to } = getDateRange(dateRange || "30d");
+  const { from, to } = getDateRange(dateRange || "30d", customFrom, customTo);
   const controller = new AbortController();
   const correlationId = requestOptions?.correlationId ||
     (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -440,10 +488,14 @@ export async function fetchAnalytics(
     campaignFilter?: string;
     brandId?: string;
     platform?: string;
+    customFrom?: string;
+    customTo?: string;
   }
 ): Promise<AnalyticsData> {
   const range = options?.dateRange || "30d";
-  const { from, to } = getDateRange(range);
+  const { from, to } = getDateRange(range, options?.customFrom, options?.customTo);
+  const fromDay = localDateKey(new Date(from));
+  const toDay = localDateKey(new Date(to));
   const platform = options?.platform && options.platform !== "all" ? options.platform : undefined;
   const brandId = options?.brandId && options.brandId !== "all" ? options.brandId : undefined;
 
@@ -458,8 +510,8 @@ export async function fetchAnalytics(
   const [overviewResult, timeSeriesResult, channelResult, campaignsResult] = await Promise.allSettled([
     apiClient(`/analytics/overview?${filterQuery}`) as Promise<GenericResponse<AnalyticsOverviewResponse>>,
     apiClient(`/analytics/time-series?${filterQuery}&granularity=day`) as Promise<GenericResponse<TimeSeriesResponse>>,
-    fetchChannelBreakdown(range, brandId),
-    fetchCampaigns({ pageSize: 50 }),
+    fetchChannelBreakdown(range, brandId, options?.customFrom, options?.customTo),
+    fetchCampaigns({ pageSize: 100 }),
   ]);
 
   if (overviewResult.status === "fulfilled") {
@@ -490,8 +542,15 @@ export async function fetchAnalytics(
   try {
     const res = campaignsResult.status === "fulfilled"
       ? (campaignsResult.value as Awaited<ReturnType<typeof fetchCampaigns>>)
-      : await fetchCampaigns({ pageSize: 50 });
-    let campaigns = res.data;
+      : await fetchCampaigns({ pageSize: 100 });
+    const extraPages = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(res.total / 100) - 1) }, (_, index) =>
+      fetchCampaigns({ page: index + 2, pageSize: 100 })));
+    let campaigns = [ ...res.data, ...extraPages.flatMap((page) => page.data) ].filter((campaign) =>
+      (!brandId || campaign.brandId === brandId) &&
+      (!platform || campaign.platform.toLowerCase() === platform.toLowerCase()) &&
+      (campaign.startDate || campaign.createdAt).slice(0, 10) <= toDay &&
+      (!campaign.endDate || campaign.endDate.slice(0, 10) >= fromDay)
+    );
     const campaignFilter = options?.campaignFilter;
     if (campaignFilter && campaignFilter !== "all") {
       const statusMap: Record<string, string> = {
@@ -507,19 +566,13 @@ export async function fetchAnalytics(
     campaignPerformance = campaigns.map((c) => ({
       id: c.id,
       name: c.name,
-      status:
-        c.status === "ACTIVE"
-          ? "active"
-          : c.status === "PAUSED"
-            ? "paused"
-            : "completed",
-      reach: c.impressions,
+      status: c.status.toLowerCase() as Lowercase<CampaignStatus>,
+      impressions: c.impressions,
       clicks: c.clicks,
       ctr:
         c.impressions > 0
           ? Math.round((c.clicks / c.impressions) * 10000) / 100
           : 0,
-      roas: c.spend > 0 ? Math.round((c.conversions / c.spend) * 10) / 10 : 0,
       spend: c.spend,
       conversions: c.conversions,
     }));
@@ -552,8 +605,8 @@ export async function fetchAnalytics(
 
   return {
     kpi: {
-      totalReach: totals?.reach || totals?.impressions || 0,
-      totalReachTrend: changes?.impressionsPct || 0,
+      totalReach: totals?.reach || 0,
+      totalReachTrend: changes?.reachPct || 0,
       totalInteractions: totals?.engagement || 0,
       totalInteractionsTrend: changes?.engagementPct || 0,
       avgCpe:
@@ -601,6 +654,6 @@ export async function fetchAnalytics(
         color: "bg-secondary",
       },
     ],
-    scheduledPublishing,
+    publishingActivity: combinePublishingActivity(timeSeries?.points || [], scheduledPublishing, timeSeries !== null),
   };
 }

@@ -33,6 +33,8 @@ export function getStatusColor(status: CampaignPerformance["status"]): string {
       return "bg-warning-amber";
     case "completed":
       return "bg-outline";
+    default:
+      return "bg-outline";
   }
 }
 

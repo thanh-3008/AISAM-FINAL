@@ -1,7 +1,7 @@
 "use client";
 
 import { type CampaignPerformance } from "@/services/analyticsService";
-import { formatNumber, formatPercent, getRoasColor, getStatusColor } from "./analyticsUtils";
+import { formatNumber, formatPercent, getStatusColor } from "./analyticsUtils";
 
 interface AnalyticsPerformanceTableProps {
   campaigns: CampaignPerformance[];
@@ -9,7 +9,7 @@ interface AnalyticsPerformanceTableProps {
 }
 
 export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport }: AnalyticsPerformanceTableProps) {
-  const maxReach = Math.max(...campaigns.map((c) => c.reach), 1);
+  const maxImpressions = Math.max(...campaigns.map((c) => c.impressions), 1);
 
   return (
     <div className="bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-2xl border border-outline-variant/50 overflow-hidden shadow-xl animate-fade-up" style={{ animationDelay: "0.4s" }}>
@@ -18,7 +18,7 @@ export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport 
           <h4 className="text-headline-sm text-on-surface">
             Performance Breakdown
           </h4>
-          <p className="text-body-sm text-outline mt-1">Campaign metrics and ROI analysis</p>
+          <p className="text-body-sm text-outline mt-1">Lifetime totals for campaigns overlapping selected dates</p>
         </div>
         <button
           onClick={onViewFullReport}
@@ -39,7 +39,7 @@ export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport 
                 Campaign
               </th>
               <th className="px-6 py-4 text-left text-label-sm font-bold text-outline uppercase tracking-wider">
-                Reach
+                Impressions
               </th>
               <th className="px-6 py-4 text-left text-label-sm font-bold text-outline uppercase tracking-wider">
                 Clicks
@@ -48,15 +48,14 @@ export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport 
                 CTR
               </th>
               <th className="px-6 py-4 text-right text-label-sm font-bold text-outline uppercase tracking-wider">
-                ROAS
+                Spend
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
             {campaigns.map((campaign, index) => {
-              const roasColor = getRoasColor(campaign.roas);
               const statusColor = getStatusColor(campaign.status);
-              const reachPercent = (campaign.reach / maxReach) * 100;
+              const impressionsPercent = (campaign.impressions / maxImpressions) * 100;
 
               return (
                 <tr
@@ -81,12 +80,12 @@ export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport 
                   <td className="px-6 py-5">
                     <div className="space-y-1">
                       <div className="text-body-sm font-semibold text-on-surface tabular-nums">
-                        {formatNumber(campaign.reach)}
+                        {formatNumber(campaign.impressions)}
                       </div>
                       <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000"
-                          style={{ width: `${reachPercent}%` }}
+                          style={{ width: `${impressionsPercent}%` }}
                         />
                       </div>
                     </div>
@@ -102,12 +101,7 @@ export default function AnalyticsPerformanceTable({ campaigns, onViewFullReport 
                     </span>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 ${roasColor.bg} ${roasColor.text} rounded-xl font-bold text-label-sm shadow-lg group-hover:scale-110 transition-transform duration-300`}
-                    >
-                      <span className="material-symbols-outlined text-label-md">trending_up</span>
-                      {campaign.roas}x
-                    </span>
+                    <span className="text-body-sm font-semibold text-on-surface tabular-nums">{formatNumber(campaign.spend)}</span>
                   </td>
                 </tr>
               );

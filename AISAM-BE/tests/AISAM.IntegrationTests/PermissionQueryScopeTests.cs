@@ -1,5 +1,7 @@
 using AISAM.Data.Model;
 using AISAM.Repositories;
+using AISAM.Repositories.Repository;
+using AISAM.Data.Enumeration;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISAM.IntegrationTests;
@@ -48,5 +50,52 @@ public class PermissionQueryScopeTests
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         db.PermissionScopeEnabled=true; db.PermissionWorkspaceId=w; db.PermissionOwner=true; db.PermissionBrandIds=[b.Id];
         Assert.Equal(1,await db.Brands.CountAsync()); Assert.Empty(await db.Posts.ToListAsync());
+    }
+
+    [Fact]
+    public async Task V2AnalyticsOnlyCountsPostsFromAssignedTeamBrandAndChannel()
+    {
+        await using var db=new AisamContext(new DbContextOptionsBuilder<AisamContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var workspace=Guid.NewGuid(); var team=new Team {WorkspaceId=workspace};
+        var brand=new Brand {WorkspaceId=workspace}; var otherBrand=new Brand {WorkspaceId=workspace};
+        var allowedChannel=new SocialIntegration {WorkspaceId=workspace,BrandId=brand.Id};
+        var deniedChannel=new SocialIntegration {WorkspaceId=workspace,BrandId=brand.Id};
+        var otherChannel=new SocialIntegration {WorkspaceId=workspace,BrandId=otherBrand.Id};
+        var now=DateTime.UtcNow;
+        var visibleContent=new Content {WorkspaceId=workspace,TeamId=team.Id,BrandId=brand.Id,Status=ContentStatusEnum.Published};
+        var hiddenContent=new Content {WorkspaceId=workspace,TeamId=team.Id,BrandId=otherBrand.Id,Status=ContentStatusEnum.Published};
+        var allowedPost=new Post {ContentId=visibleContent.Id,IntegrationId=allowedChannel.Id,PublishedAt=now};
+        var deniedPost=new Post {ContentId=visibleContent.Id,IntegrationId=deniedChannel.Id,PublishedAt=now};
+        var otherPost=new Post {ContentId=hiddenContent.Id,IntegrationId=otherChannel.Id,PublishedAt=now};
+        var allowedSchedule=new ContentCalendar {WorkspaceId=workspace,ContentId=visibleContent.Id,IntegrationId=allowedChannel.Id,ScheduledDate=now};
+        var deniedSchedule=new ContentCalendar {WorkspaceId=workspace,ContentId=visibleContent.Id,IntegrationId=deniedChannel.Id,ScheduledDate=now};
+        db.AddRange(team,brand,otherBrand,new TeamBrand {TeamId=team.Id,BrandId=brand.Id},
+            allowedChannel,deniedChannel,otherChannel,visibleContent,hiddenContent,
+            allowedPost,deniedPost,otherPost,allowedSchedule,deniedSchedule,
+            new PerformanceReport {PostId=allowedPost.Id,ReportDate=now.AddDays(-1),Impressions=5},
+            new PerformanceReport {PostId=allowedPost.Id,ReportDate=now,Impressions=10},
+            new PerformanceReport {PostId=deniedPost.Id,ReportDate=now,Impressions=20},
+            new PerformanceReport {PostId=otherPost.Id,ReportDate=now,Impressions=30});
+        await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+
+        db.PermissionScopeEnabled=db.PermissionV2Enabled=true;
+        db.PermissionWorkspaceId=workspace; db.PermissionTeamIds=[team.Id];
+        db.PermissionWriteTeamIds=[team.Id]; db.PermissionBrandIds=[brand.Id]; db.PermissionChannelIds=[allowedChannel.Id];
+        Assert.Equal([allowedPost.Id],await db.Posts.Select(p=>p.Id).ToArrayAsync());
+        Assert.Equal([allowedSchedule.Id],await db.ContentCalendars.Select(s=>s.Id).ToArrayAsync());
+        Assert.Equal(2,await db.PerformanceReports.CountAsync());
+        var totals=await new PerformanceReportRepository(db).GetAggregatedTotalsAsync(workspace,now.AddDays(-1),now.AddDays(1));
+        Assert.Equal(1,totals.PublishedPosts);
+        Assert.Equal(10,totals.Impressions);
+
+        db.PermissionWriteTeamIds=[];
+        Assert.Equal(2,await db.PerformanceReports.CountAsync());
+        db.PermissionChannelIds=[];
+        Assert.Empty(await db.Posts.ToListAsync());
+        Assert.Empty(await db.ContentCalendars.ToListAsync());
+        Assert.Empty(await db.PerformanceReports.ToListAsync());
+
+        db.PermissionOwner=true;
+        Assert.Equal(4,await db.PerformanceReports.CountAsync());
     }
 }
