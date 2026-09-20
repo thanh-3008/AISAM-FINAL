@@ -37,6 +37,8 @@ describe("TikTok callback relay", () => {
     const response = GET(request);
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Processing TikTok authorization");
+    const html = await response.text();
+    expect(html).toContain("Processing TikTok authorization");
+    expect(html).toContain("'X-RBAC-Contract-Version': '2'");
   });
 });

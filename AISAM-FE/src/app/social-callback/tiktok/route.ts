@@ -108,6 +108,7 @@ export function GET(request: NextRequest) {
         const headers = {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + token,
+          'X-RBAC-Contract-Version': '2',
           'X-Workspace-Id': workspace.id,
           ...(profile?.id ? { 'X-Profile-Id': profile.id } : {})
         };
