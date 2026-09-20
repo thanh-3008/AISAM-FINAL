@@ -138,7 +138,7 @@ export default function ContentPage() {
     let list = [...allContent];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((c) => c.title.toLowerCase().includes(q) || c.brandName.toLowerCase().includes(q));
+      list = list.filter((c) => c.title.toLowerCase().includes(q) || c.brandName.toLowerCase().includes(q) || (c.teamName ?? "").toLowerCase().includes(q));
     }
     if (brandFilter) list = list.filter((c) => matchesApprovalBrand(c, brandFilter));
     if (productFilter) list = list.filter((c) => c.productName === productFilter);
@@ -665,6 +665,7 @@ export default function ContentPage() {
                       </th>
                       <th className="px-5 py-3.5 font-semibold">Content</th>
                       <th className="px-5 py-3.5 font-semibold">Brand</th>
+                      <th className="px-5 py-3.5 font-semibold">Team</th>
                       <th className="px-5 py-3.5 font-semibold">Created by</th>
                       <th className="px-5 py-3.5 font-semibold">Type</th>
                       <th className="px-5 py-3.5 font-semibold">Status</th>
@@ -703,6 +704,12 @@ export default function ContentPage() {
                           </button>
                         </td>
                         <td className="px-5 py-3.5 text-body-sm text-on-surface-variant">{item.brandName}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex max-w-40 items-center gap-1.5 rounded-full bg-primary/8 px-2.5 py-1 text-label-xs font-semibold text-primary" title={item.teamName || "Chưa gán Team"}>
+                            <span className="material-symbols-outlined text-[15px]">groups</span>
+                            <span className="truncate">{item.teamName || "Chưa gán Team"}</span>
+                          </span>
+                        </td>
                         <td className="px-5 py-3.5 text-body-sm text-on-surface-variant">
                           <span className="inline-flex items-center gap-1.5" title={item.creatorName}>
                             <span className="material-symbols-outlined text-[16px] text-outline">person</span>
@@ -958,6 +965,10 @@ export default function ContentPage() {
                 <div>
                   <h3 className="text-headline-sm text-on-surface font-bold">{previewItem.title}</h3>
                   <p className="text-body-sm text-on-surface-variant mt-0.5">{previewItem.brandName} &middot; {previewItem.productName}</p>
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/8 px-2.5 py-1 text-label-xs font-semibold text-primary">
+                    <span className="material-symbols-outlined text-[15px]">groups</span>
+                    {previewItem.teamName || "Chưa gán Team"}
+                  </p>
                 </div>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-xs font-semibold shrink-0 ${STATUS_STYLES[previewItem.status]}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${previewItem.status === "Published" ? "bg-emerald-500 animate-pulse" : previewItem.status === "Scheduled" ? "bg-blue-500" : previewItem.status === "Awaiting Approval" ? "bg-amber-500" : "bg-outline"}`} />
@@ -1210,6 +1221,10 @@ function ContentCard({ item, index, visible, openMenuId, onToggleMenu, onAction,
             <span>{item.brandName}</span>
             <span className="w-1 h-1 rounded-full bg-outline/30" />
             <span>{item.productName}</span>
+          </div>
+          <div className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-primary/8 px-2.5 py-1 text-[11px] font-semibold text-primary" title={item.teamName || "Chưa gán Team"}>
+            <span className="material-symbols-outlined text-[14px]">groups</span>
+            <span className="truncate">{item.teamName || "Chưa gán Team"}</span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mb-3" title={item.creatorName}>
             <span className="material-symbols-outlined text-[14px] text-outline">person</span>

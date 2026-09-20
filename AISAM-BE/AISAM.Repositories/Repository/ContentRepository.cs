@@ -18,14 +18,18 @@ public sealed class ContentRepository : IContentRepository
 
     public async Task<Content?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await Query()
+        var content = await Query()
             .FirstOrDefaultAsync(content => content.Id == id && !content.IsDeleted, cancellationToken);
+        await PopulateTeamNameAsync(content, cancellationToken);
+        return content;
     }
 
     public async Task<Content?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await Query()
+        var content = await Query()
             .FirstOrDefaultAsync(content => content.Id == id, cancellationToken);
+        await PopulateTeamNameAsync(content, cancellationToken);
+        return content;
     }
 
     public async Task<PagedResult<ContentListDto>> GetPagedByProfileIdAsync(
@@ -91,6 +95,8 @@ public sealed class ContentRepository : IContentRepository
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
                 BrandName = c.Brand.Name,
+                TeamId = c.TeamId,
+                TeamName = _context.Teams.Where(t => t.Id == c.TeamId).Select(t => t.Name).FirstOrDefault(),
                 CreatorId = c.PrimaryCreatorId,
                 CreatorName = c.PrimaryCreator != null ? (c.PrimaryCreator.FullName ?? c.PrimaryCreator.Email) : null,
                 WorkspaceId = c.WorkspaceId,
@@ -160,6 +166,8 @@ public sealed class ContentRepository : IContentRepository
             ProfileId = c.ProfileId,
             BrandId = c.BrandId,
             BrandName = c.Brand.Name,
+            TeamId = c.TeamId,
+            TeamName = _context.Teams.Where(t => t.Id == c.TeamId).Select(t => t.Name).FirstOrDefault(),
             CreatorId = c.PrimaryCreatorId,
             CreatorName = c.PrimaryCreator != null ? (c.PrimaryCreator.FullName ?? c.PrimaryCreator.Email) : null,
             WorkspaceId = c.WorkspaceId,
@@ -312,6 +320,8 @@ public sealed class ContentRepository : IContentRepository
                 ProfileId = c.ProfileId,
                 BrandId = c.BrandId,
                 BrandName = c.Brand.Name,
+                TeamId = c.TeamId,
+                TeamName = _context.Teams.Where(t => t.Id == c.TeamId).Select(t => t.Name).FirstOrDefault(),
                 CreatorId = c.PrimaryCreatorId,
                 CreatorName = c.PrimaryCreator != null ? (c.PrimaryCreator.FullName ?? c.PrimaryCreator.Email) : null,
                 WorkspaceId = c.WorkspaceId,
@@ -375,5 +385,14 @@ public sealed class ContentRepository : IContentRepository
             .Include(content => content.Product)
             .Include(content => content.PrimaryCreator)
             .Include(content => content.Approvals);
+    }
+
+    private async Task PopulateTeamNameAsync(Content? content, CancellationToken cancellationToken)
+    {
+        if (content?.TeamId is not Guid teamId) return;
+        content.TeamName = await _context.Teams.AsNoTracking()
+            .Where(team => team.Id == teamId)
+            .Select(team => team.Name)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

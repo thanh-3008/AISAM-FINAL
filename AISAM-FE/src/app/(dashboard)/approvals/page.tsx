@@ -250,6 +250,8 @@ function mapFailedScheduleToApprovalItem(schedule: ScheduleItem, sourceContent?:
     title: schedule.title || sourceContent?.title || "Failed scheduled post",
     brandId: schedule.brandId || sourceContent?.brandId || "",
     brandName: schedule.brandName || sourceContent?.brandName || "Unknown brand",
+    teamId: sourceContent?.teamId,
+    teamName: sourceContent?.teamName,
     productName: schedule.productName || sourceContent?.productName || "",
     type,
     status: "Publish Failed",
@@ -655,7 +657,7 @@ export default function ApprovalsPage() {
       .filter(statusFilter[tab])
       .filter((i) => matchesApprovalBrand(i, brandFilter))
       .filter((i) => !priorityFilter || getPriority(i).label === priorityFilter)
-      .filter((i) => !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.brandName.toLowerCase().includes(search.toLowerCase())),
+      .filter((i) => !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.brandName.toLowerCase().includes(search.toLowerCase()) || (i.teamName ?? "").toLowerCase().includes(search.toLowerCase())),
     sortKey, sortDir,
   );
 
@@ -949,6 +951,10 @@ export default function ApprovalsPage() {
                               <div>
                                 <p className="text-body-sm font-semibold text-on-surface">{item.brandName || "Unknown brand"}</p>
                                 <p className="text-[11px] text-outline">{item.productName}</p>
+                                <p className="mt-1 inline-flex max-w-40 items-center gap-1 rounded-full bg-primary/8 px-2 py-0.5 text-[10px] font-semibold text-primary" title={item.teamName || "Chưa gán Team"}>
+                                  <span className="material-symbols-outlined text-[12px]">groups</span>
+                                  <span className="truncate">{item.teamName || "Chưa gán Team"}</span>
+                                </p>
                               </div>
                             </div>
                           </td>
@@ -1243,6 +1249,7 @@ export default function ApprovalsPage() {
                         { icon: "article", label: "Headline", value: drawerItem.title, full: true },
                         { icon: "calendar_today", label: "Created", value: new Date(drawerItem.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
                         { icon: "person", label: "Requester", value: drawerItem.isAiGenerated ? "AI Generated" : "Manual", badge: true },
+                        { icon: "groups", label: "Team", value: drawerItem.teamName || "Chưa gán Team" },
                         { icon: "business", label: "Brand", value: `${drawerItem.brandName} · ${drawerItem.productName}`, color: getBrandColor(drawerItem.brandName) || "#6366f1" },
                         { icon: "flag", label: "Priority", value: getPriority(drawerItem).label, chip: getPriority(drawerItem).color },
                       ].map((f, i) => (

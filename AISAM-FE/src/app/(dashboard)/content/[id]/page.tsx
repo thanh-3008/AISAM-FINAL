@@ -603,6 +603,14 @@ export default function ContentDetailPage() {
                 </div>
 
                 <div>
+                  <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Team</p>
+                  <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-primary/8 px-2.5 py-1 text-body-sm font-semibold text-primary">
+                    <span className="material-symbols-outlined text-[17px]">groups</span>
+                    <span className="truncate">{item.teamName || "Chưa gán Team"}</span>
+                  </p>
+                </div>
+
+                <div>
                   <p className="text-label-xs text-outline font-semibold uppercase tracking-wider mb-1.5">Created by</p>
                   <p className="text-body-sm text-on-surface flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[17px] text-outline">person</span>

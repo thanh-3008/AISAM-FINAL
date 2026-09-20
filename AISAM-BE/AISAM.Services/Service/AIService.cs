@@ -160,7 +160,8 @@ public sealed class AIService : IAIService
         generation.Content.TextContent = generation.GeneratedText;
         generation.Content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(generation.Content), "AI generation approved.");
+        var approvedContent = await _contentRepository.GetByIdAsync(generation.Content.Id, cancellationToken) ?? generation.Content;
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(approvedContent), "AI generation approved.");
     }
 
     public async Task<GenericResponse<IEnumerable<AiGenerationResponse>>> GetGenerationsAsync(Guid contentId, Guid profileId, CancellationToken cancellationToken = default)
@@ -681,7 +682,8 @@ public sealed class AIService : IAIService
         generation.Content.TextContent = generation.GeneratedText;
         generation.Content.Status = ContentStatusEnum.Draft;
         await _contentRepository.UpdateAsync(generation.Content, cancellationToken);
-        return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(generation.Content), "AI generation approved.");
+        var approvedContent = await _contentRepository.GetByIdAsync(generation.Content.Id, cancellationToken) ?? generation.Content;
+        return GenericResponse<ContentResponseDto>.CreateSuccess(MapContent(approvedContent), "AI generation approved.");
     }
 
     public async Task<GenericResponse<AiGenerationResponse>> GenerateImageAsync(Guid workspaceId, Guid userId, GenerateImageRequest request, CancellationToken cancellationToken = default)
@@ -2059,6 +2061,8 @@ Treat all reference images as different views of one product. Do not create mult
             ProfileId = content.ProfileId,
             BrandId = content.BrandId,
             BrandName = content.Brand?.Name,
+            TeamId = content.TeamId,
+            TeamName = content.TeamName,
             ProductId = content.ProductId,
             AdType = content.AdType,
             Title = content.Title,

@@ -125,6 +125,10 @@ public class HolidayService : IHolidayService
             ProfileId = updatedContent.ProfileId,
             BrandId = updatedContent.BrandId,
             BrandName = updatedContent.Brand?.Name,
+            TeamId = updatedContent.TeamId,
+            TeamName = updatedContent.TeamId.HasValue
+                ? await _context.Teams.AsNoTracking().Where(team => team.Id == updatedContent.TeamId.Value).Select(team => team.Name).FirstOrDefaultAsync(cancellationToken)
+                : null,
             ProductId = updatedContent.ProductId,
             AdType = updatedContent.AdType,
             Title = updatedContent.Title,
@@ -203,6 +207,10 @@ public class HolidayService : IHolidayService
             ProfileId = updatedContent.ProfileId,
             BrandId = updatedContent.BrandId,
             BrandName = updatedContent.Brand?.Name,
+            TeamId = updatedContent.TeamId,
+            TeamName = updatedContent.TeamId.HasValue
+                ? await _context.Teams.AsNoTracking().Where(team => team.Id == updatedContent.TeamId.Value).Select(team => team.Name).FirstOrDefaultAsync(cancellationToken)
+                : null,
             ProductId = updatedContent.ProductId,
             AdType = updatedContent.AdType,
             Title = updatedContent.Title,
@@ -283,6 +291,10 @@ public class HolidayService : IHolidayService
             ProfileId = updatedContent.ProfileId,
             BrandId = updatedContent.BrandId,
             BrandName = updatedContent.Brand?.Name,
+            TeamId = updatedContent.TeamId,
+            TeamName = updatedContent.TeamId.HasValue
+                ? await _context.Teams.AsNoTracking().Where(team => team.Id == updatedContent.TeamId.Value).Select(team => team.Name).FirstOrDefaultAsync(cancellationToken)
+                : null,
             ProductId = updatedContent.ProductId,
             AdType = updatedContent.AdType,
             Title = updatedContent.Title,

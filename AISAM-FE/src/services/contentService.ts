@@ -33,6 +33,8 @@ export interface ContentApiItem {
   profileId: string;
   brandId: string;
   brandName: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
   creatorId?: string | null;
   creatorName?: string | null;
   productId: string | null;
@@ -61,6 +63,8 @@ export interface ContentItem {
   title: string;
   brandId: string;
   brandName: string;
+  teamId?: string;
+  teamName?: string;
   creatorId?: string;
   creatorName?: string;
   productName: string;
@@ -85,6 +89,8 @@ export interface ContentDetail {
   title: string;
   brandId: string;
   brandName: string;
+  teamId?: string;
+  teamName?: string;
   creatorId?: string;
   creatorName: string;
   productName: string;
@@ -285,6 +291,8 @@ export function apiItemToContentItem(api: ContentApiItem): ContentItem {
     title: api.title || "",
     brandId: api.brandId,
     brandName: api.brandName || "",
+    teamId: api.teamId || undefined,
+    teamName: api.teamName || undefined,
     creatorId: api.creatorId || undefined,
     creatorName: api.creatorName || "Unknown",
     productName: api.productName || "",
@@ -311,6 +319,8 @@ export function apiItemToContentDetail(api: ContentApiItem): ContentDetail {
     title: api.title || "",
     brandId: api.brandId,
     brandName: api.brandName || "",
+    teamId: api.teamId || undefined,
+    teamName: api.teamName || undefined,
     creatorId: api.creatorId || undefined,
     creatorName: api.creatorName || "Unknown",
     productName: api.productName || "",

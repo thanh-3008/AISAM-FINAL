@@ -134,6 +134,7 @@ public sealed class ContentService : IContentService
         }
 
         await _contentRepository.AddAsync(content, cancellationToken);
+        await PopulateTeamNameAsync(content, cancellationToken);
         if (content.Status == ContentStatusEnum.PendingApproval)
         {
             await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
@@ -173,6 +174,7 @@ public sealed class ContentService : IContentService
             await ResolveAndRegisterMediaMetadataAsync(content.VideoUrl, cancellationToken);
         }
         await _contentRepository.AddAsync(content, cancellationToken);
+        await PopulateTeamNameAsync(content, cancellationToken);
         if (content.Status == ContentStatusEnum.PendingApproval)
         {
             await CreateApprovalNotificationAsync(content, ApprovalNotificationEvent.Submitted, null, cancellationToken);
@@ -269,7 +271,7 @@ public sealed class ContentService : IContentService
         if (existing == null || existing.WorkspaceId != workspaceId) return NotFound();
         if(V2 && (_access is null || !(await _access.CheckAsync(new(actorUserId,workspaceId,AISAM.Services.Access.AccessResourceKind.Brand,existing.BrandId,AISAM.Services.Access.ResourcePermission.ContentCreate,TeamId:existing.TeamId),cancellationToken)).Allowed))
             return GenericResponse<ContentResponseDto>.CreateError("Cannot create content in this Team.",HttpStatusCode.Forbidden);
-        var clone = new Content { TeamId=existing.TeamId, WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, RichTextJson = existing.RichTextJson, RichTextVersion = existing.RichTextVersion, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
+        var clone = new Content { TeamId=existing.TeamId, TeamName=existing.TeamName, WorkspaceId = workspaceId, ProfileId = existing.ProfileId, BrandId = existing.BrandId, Brand = existing.Brand, ProductId = existing.ProductId, Product = existing.Product, AdType = existing.AdType, Title = existing.Title, TextContent = existing.TextContent, RichTextJson = existing.RichTextJson, RichTextVersion = existing.RichTextVersion, ImageUrl = existing.ImageUrl, VideoUrl = existing.VideoUrl, Tags = existing.Tags, Status = ContentStatusEnum.Draft };
         clone.PrimaryCreatorId = actorUserId;
         await _contentRepository.AddAsync(clone, cancellationToken);
         return GenericResponse<ContentResponseDto>.CreateSuccess(MapToDto(clone), MessageConstants.Content.ClonedSuccess);
@@ -513,6 +515,8 @@ public sealed class ContentService : IContentService
             WorkspaceId = existing.WorkspaceId,
             BrandId = existing.BrandId,
             Brand = existing.Brand,
+            TeamId = existing.TeamId,
+            TeamName = existing.TeamName,
             ProductId = existing.ProductId,
             Product = existing.Product,
             AdType = existing.AdType,
@@ -1092,6 +1096,8 @@ public sealed class ContentService : IContentService
             ProfileId = content.ProfileId,
             BrandId = content.BrandId,
             BrandName = content.Brand?.Name,
+            TeamId = content.TeamId,
+            TeamName = content.TeamName,
             CreatorId = content.PrimaryCreatorId,
             CreatorName = content.PrimaryCreator is null
                 ? null
@@ -1118,6 +1124,15 @@ public sealed class ContentService : IContentService
             CreatedAt = content.CreatedAt,
             UpdatedAt = content.UpdatedAt
         };
+    }
+
+    private async Task PopulateTeamNameAsync(Content content, CancellationToken cancellationToken)
+    {
+        if (_context is null || content.TeamId is not Guid teamId) return;
+        content.TeamName = await _context.Teams.AsNoTracking()
+            .Where(team => team.Id == teamId)
+            .Select(team => team.Name)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>

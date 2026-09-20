@@ -116,6 +116,9 @@ namespace AISAM.Data.Model
         [ForeignKey("PrimaryCreatorId")]
         public virtual User? PrimaryCreator { get; set; }
 
+        [NotMapped]
+        public string? TeamName { get; set; }
+
         public virtual ICollection<ContentCalendar> ContentCalendars { get; set; } = new List<ContentCalendar>();
         public virtual ICollection<Approval> Approvals { get; set; } = new List<Approval>();
         public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
