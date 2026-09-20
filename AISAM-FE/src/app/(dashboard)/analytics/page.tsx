@@ -21,6 +21,10 @@ import AnalyticsTopPosts from "@/components/analytics/AnalyticsTopPosts";
 import AnalyticsAiInsights from "@/components/analytics/AnalyticsAiInsights";
 import AnalyticsEfficiencyCard from "@/components/analytics/AnalyticsEfficiencyCard";
 
+function dateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export default function AnalyticsPage() {
   const featureGate = useFeatureGate();
   const { activeWorkspace } = useWorkspaces();
@@ -29,6 +33,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
 
   const [dateRange, setDateRange] = useState<DateRange>("30d");
+  const [customFrom, setCustomFrom] = useState(() => { const date = new Date(); date.setDate(date.getDate() - 29); return dateInputValue(date); });
+  const [customTo, setCustomTo] = useState(() => dateInputValue(new Date()));
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -55,6 +61,8 @@ export default function AnalyticsPage() {
           campaignFilter,
           brandId: brandFilter,
           platform: platformFilter,
+          customFrom,
+          customTo,
         });
         if (!cancelled && analyticsRequestIdRef.current === requestId) setData(res);
       } catch (err) {
@@ -65,7 +73,7 @@ export default function AnalyticsPage() {
       }
 
       try {
-        const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined);
+        const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined, undefined, brandFilter !== "all" ? brandFilter : undefined, customFrom, customTo);
         if (!cancelled && analyticsRequestIdRef.current === requestId) setTopPosts(posts);
       } catch (err) {
         if (!cancelled && analyticsRequestIdRef.current === requestId) console.error("Failed to load top posts:", err);
@@ -75,7 +83,7 @@ export default function AnalyticsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, [dateRange, campaignFilter, brandFilter, platformFilter, activeWorkspace?.id]);
+  }, [dateRange, customFrom, customTo, campaignFilter, brandFilter, platformFilter, activeWorkspace?.id]);
 
   const handleRefresh = () => {
     const requestId = ++analyticsRequestIdRef.current;
@@ -84,9 +92,9 @@ export default function AnalyticsPage() {
     setLoading(true);
     const load = async () => {
       try {
-        const res = await fetchAnalytics({ dateRange, campaignFilter, brandId: brandFilter, platform: platformFilter });
+        const res = await fetchAnalytics({ dateRange, campaignFilter, brandId: brandFilter, platform: platformFilter, customFrom, customTo });
         if (analyticsRequestIdRef.current === requestId) setData(res);
-        const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined);
+        const posts = await fetchTopPosts(dateRange, "engagement", platformFilter !== "all" ? platformFilter : undefined, undefined, brandFilter !== "all" ? brandFilter : undefined, customFrom, customTo);
         if (analyticsRequestIdRef.current === requestId) setTopPosts(posts);
       } catch (err) {
         if (analyticsRequestIdRef.current === requestId) console.error("Failed to refresh analytics:", err);
@@ -202,6 +210,10 @@ export default function AnalyticsPage() {
               <AnalyticsFilterBar
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
+                customFrom={customFrom}
+                onCustomFromChange={(value) => { if (value && value <= customTo) setCustomFrom(value); }}
+                customTo={customTo}
+                onCustomToChange={(value) => { if (value && value >= customFrom) setCustomTo(value); }}
                 campaignFilter={campaignFilter}
                 onCampaignFilterChange={setCampaignFilter}
                 brandFilter={brandFilter}
@@ -216,7 +228,7 @@ export default function AnalyticsPage() {
 
               <div className="grid grid-cols-12 gap-6">
                 <div className="col-span-12 lg:col-span-8 space-y-6">
-                  <AnalyticsChart data={data.scheduledPublishing} />
+                  <AnalyticsChart data={data.publishingActivity} />
                   <AnalyticsPerformanceTable campaigns={data.campaignPerformance} onViewFullReport={handleExport} />
                   <AnalyticsTopPosts posts={topPosts} />
                 </div>
@@ -227,6 +239,8 @@ export default function AnalyticsPage() {
                       <AnalyticsAiInsights
                         insights={data.aiInsights}
                         dateRange={dateRange}
+                        customFrom={customFrom}
+                        customTo={customTo}
                         brandId={brandFilter}
                         platform={platformFilter}
                       />

@@ -17,6 +17,10 @@ interface PlatformOption {
 interface AnalyticsFilterBarProps {
   dateRange: DateRange;
   onDateRangeChange: (value: DateRange) => void;
+  customFrom: string;
+  onCustomFromChange: (value: string) => void;
+  customTo: string;
+  onCustomToChange: (value: string) => void;
   campaignFilter: string;
   onCampaignFilterChange: (value: string) => void;
   brandFilter: string;
@@ -38,6 +42,10 @@ const DEFAULT_PLATFORM_OPTIONS: PlatformOption[] = [
 export default function AnalyticsFilterBar({
   dateRange,
   onDateRangeChange,
+  customFrom,
+  onCustomFromChange,
+  customTo,
+  onCustomToChange,
   campaignFilter,
   onCampaignFilterChange,
   brandFilter,
@@ -78,8 +86,19 @@ export default function AnalyticsFilterBar({
           ))}
         </select>
 
+        {dateRange === "custom" && (
+          <div className="flex items-center gap-2">
+            <label htmlFor="analytics-from" className="text-label-sm text-outline">From</label>
+            <input id="analytics-from" type="date" value={customFrom} max={customTo} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-surface-container-low border border-outline-variant/30 rounded-lg px-2 py-2 text-label-sm text-on-surface" />
+            <label htmlFor="analytics-to" className="text-label-sm text-outline">To</label>
+            <input id="analytics-to" type="date" value={customTo} min={customFrom} onChange={(e) => onCustomToChange(e.target.value)} className="bg-surface-container-low border border-outline-variant/30 rounded-lg px-2 py-2 text-label-sm text-on-surface" />
+          </div>
+        )}
+
         {/* Campaign Filter */}
+        <label htmlFor="analytics-campaign-status" className="text-label-sm text-outline">Campaign table</label>
         <select
+          id="analytics-campaign-status"
           value={campaignFilter}
           onChange={(e) => onCampaignFilterChange(e.target.value)}
           className="bg-surface-container-low border border-outline-variant/30 rounded-xl px-4 py-2.5 text-label-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-300 cursor-pointer hover:bg-surface-container-high"

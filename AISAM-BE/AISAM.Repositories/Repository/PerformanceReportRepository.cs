@@ -35,6 +35,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
     {
         var postsQuery = _context.Posts.AsNoTracking()
             .Where(p => !p.IsDeleted
+                && p.Status == ContentStatusEnum.Published
                 && p.PublishedAt >= from && p.PublishedAt <= to
                 && p.Content != null && !p.Content.IsDeleted
                 && p.Content.WorkspaceId == workspaceId);
@@ -56,6 +57,8 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         if (campaignId.HasValue)
             campaignsQuery = campaignsQuery.Where(c => c.Id == campaignId.Value);
+        if (!string.IsNullOrWhiteSpace(platform))
+            campaignsQuery = campaignsQuery.Where(c => c.Platform.ToLower() == platform.ToLower());
 
         var publishedPosts = await postsQuery.CountAsync(cancellationToken);
         var activeCampaigns = await campaignsQuery
@@ -92,7 +95,11 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             perfReportsQuery = perfReportsQuery.Where(pr => pr.Post!.Integration.Platform == platformEnum);
         }
 
-        var perfAgg = await perfReportsQuery
+        var latestReportsQuery = perfReportsQuery.Where(pr => pr.ReportDate == perfReportsQuery
+            .Where(other => other.PostId == pr.PostId)
+            .Max(other => (DateTime?)other.ReportDate));
+
+        var perfAgg = await latestReportsQuery
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -103,11 +110,9 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        long perfReach = await perfReportsQuery.SumAsync(pr => pr.Reach, cancellationToken);
+        long perfReach = await latestReportsQuery.SumAsync(pr => pr.Reach, cancellationToken);
         var totalImpressions = (campaignAgg?.Impressions ?? 0) + (perfAgg?.Impressions ?? 0);
         var totalClicks = (campaignAgg?.Clicks ?? 0) + (perfAgg?.Clicks ?? 0);
-
-        var perfReportCount = await perfReportsQuery.CountAsync(cancellationToken);
 
         return new AnalyticsTotals
         {
@@ -135,6 +140,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
 
         var postsQuery = _context.Posts
             .Where(p => !p.IsDeleted
+                && p.Status == ContentStatusEnum.Published
                 && p.PublishedAt >= from && p.PublishedAt <= to
                 && p.Content != null && !p.Content.IsDeleted
                 && p.Content.WorkspaceId == workspaceId);
@@ -683,7 +689,7 @@ public sealed class PerformanceReportRepository : IPerformanceReportRepository
         CancellationToken cancellationToken = default)
     {
         var periodLength = currentTo - currentFrom;
-        var prevTo = currentFrom.AddDays(-1);
+        var prevTo = currentFrom.AddMilliseconds(-1);
         var prevFrom = prevTo - periodLength;
 
         return await GetAggregatedTotalsAsync(workspaceId, prevFrom, prevTo, brandId, platform, campaignId, cancellationToken);

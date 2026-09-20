@@ -12,15 +12,15 @@ export default function AnalyticsKpiCards({ kpi }: AnalyticsKpiCardsProps) {
 
   const stats = [
     {
-      label: "Total Reach",
-      description: "Total Reach: The unique number of users who saw your ad or content.",
+      label: "Reported Reach",
+      description: "Sum of reported reach across posts; the same person may be counted in more than one post.",
       value: kpi.totalReach,
       format: (v: number) => formatCurrency(v).replace('$', ''),
       trend: kpi.totalReachTrend,
       icon: "visibility",
       gradient: "from-blue-500 via-blue-600 to-indigo-600",
       bgGlow: "bg-blue-500/10",
-      sparkline: sparkData.impressions.length > 0 ? sparkData.impressions : [0],
+      sparkline: [0],
     },
     {
       label: "Total Interactions",
