@@ -25,6 +25,7 @@ public class AnalyticsTotals
 
 public sealed class AnalyticsChanges
 {
+    public decimal ReachPct { get; set; }
     public decimal ImpressionsPct { get; set; }
     public decimal EngagementPct { get; set; }
     public decimal CtrPct { get; set; }

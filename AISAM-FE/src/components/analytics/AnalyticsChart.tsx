@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { type ChartView, type ScheduledPublishingPoint } from "@/services/analyticsService";
+import { type ChartView, type PublishingActivityPoint } from "@/services/analyticsService";
 
-interface AnalyticsChartProps { data: ScheduledPublishingPoint[]; }
+interface AnalyticsChartProps { data: PublishingActivityPoint[]; }
 
 const WIDTH = 800;
 const HEIGHT = 400;
@@ -15,7 +15,8 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
   const displayData = useMemo(() => view === "weekly" ? aggregateWeekly(data) : data, [data, view]);
   const chartWidth = WIDTH - PADDING.left - PADDING.right;
   const chartHeight = HEIGHT - PADDING.top - PADDING.bottom;
-  const maxValue = Math.max(...displayData.flatMap((p) => [p.completed, p.failed, p.pending]), 1);
+  const hasActivity = displayData.some((point) => point.published > 0 || point.failed > 0 || point.pending > 0);
+  const maxValue = Math.max(...displayData.flatMap((p) => [p.published, p.failed, p.pending]), 1);
   const maxPosts = Math.max(4, Math.ceil(maxValue / 4) * 4);
   const slotWidth = displayData.length ? chartWidth / displayData.length : chartWidth;
   const groupWidth = Math.min(54, slotWidth * 0.78);
@@ -23,11 +24,12 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
   const barWidth = (groupWidth - barGap * 2) / 3;
   const labelStep = Math.max(1, Math.ceil(displayData.length / 10));
   const totals = useMemo(() => {
-    const completed = displayData.reduce((sum, p) => sum + p.completed, 0);
+    const published = displayData.reduce((sum, p) => sum + p.published, 0);
+    const scheduledCompleted = displayData.reduce((sum, p) => sum + p.scheduledCompleted, 0);
     const failed = displayData.reduce((sum, p) => sum + p.failed, 0);
     const pending = displayData.reduce((sum, p) => sum + p.pending, 0);
-    const finished = completed + failed;
-    return { completed, failed, pending, successRate: finished ? completed / finished * 100 : 0 };
+    const scheduledFinished = scheduledCompleted + failed;
+    return { published, failed, pending, scheduledFinished, successRate: scheduledFinished ? scheduledCompleted / scheduledFinished * 100 : 0 };
   }, [displayData]);
 
   return (
@@ -42,7 +44,7 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
               <h4 className="text-headline-sm text-on-surface">Publishing Performance</h4>
               <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-100">Live</span>
             </div>
-            <p className="mt-1 text-on-surface-variant text-body-sm">Reliability of scheduled content delivery</p>
+            <p className="mt-1 text-on-surface-variant text-body-sm">All published posts; failed and pending schedules</p>
           </div>
         </div>
         <div className="flex items-center self-start bg-surface-container-high rounded-xl p-1 shadow-inner">
@@ -55,10 +57,10 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
         </div>
       </div>
 
-      {displayData.length > 0 && <div className="mb-6 overflow-hidden rounded-2xl border border-indigo-100/80 bg-linear-to-r from-indigo-50/80 via-white to-violet-50/70 p-4 shadow-sm">
+      {hasActivity && <div className="mb-6 overflow-hidden rounded-2xl border border-indigo-100/80 bg-linear-to-r from-indigo-50/80 via-white to-violet-50/70 p-4 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid flex-1 grid-cols-3 divide-x divide-outline-variant/40">
-            <Summary label="Published" value={totals.completed} icon="check_circle" tone="green" />
+            <Summary label="Published" value={totals.published} icon="check_circle" tone="green" />
             <Summary label="Failed" value={totals.failed} icon="error" tone="red" />
             <Summary label="Pending" value={totals.pending} icon="schedule" tone="indigo" />
           </div>
@@ -66,16 +68,15 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
             <div className="relative grid h-16 w-16 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#4f46e5 ${totals.successRate * 3.6}deg, #e0e7ff 0deg)` }}>
               <div className="grid h-12 w-12 place-items-center rounded-full bg-white shadow-inner"><span className="material-symbols-outlined text-xl text-indigo-600">verified</span></div>
             </div>
-            <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-500">Success rate</p><p className="text-2xl font-extrabold text-indigo-700">{totals.successRate.toFixed(1)}%</p></div>
+            <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-500">Scheduled success rate</p><p className="text-2xl font-extrabold text-indigo-700">{totals.scheduledFinished ? `${totals.successRate.toFixed(1)}%` : "N/A"}</p></div>
           </div>
         </div>
       </div>}
 
-      {displayData.length === 0 ? (
+      {!hasActivity ? (
         <div className="h-[400px] rounded-xl bg-surface-container-lowest/50 flex flex-col items-center justify-center text-center px-6">
           <span className="material-symbols-outlined text-5xl text-outline/50 mb-3">event_busy</span>
-          <p className="font-semibold text-on-surface">No scheduled posts in this period</p>
-          <p className="text-body-sm text-on-surface-variant mt-1">Schedule content to start tracking publishing reliability.</p>
+          <p className="font-semibold text-on-surface">No publishing activity in this period</p>
         </div>
       ) : (
         <div className="relative w-full overflow-hidden rounded-2xl border border-outline-variant/30 bg-white p-3 shadow-inner">
@@ -100,16 +101,16 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
               const x = PADDING.left + slotWidth * i + (slotWidth - groupWidth) / 2;
               const pendingHeight = (p.pending / maxPosts) * chartHeight;
               const failedHeight = (p.failed / maxPosts) * chartHeight;
-              const completedHeight = (p.completed / maxPosts) * chartHeight;
+              const publishedHeight = (p.published / maxPosts) * chartHeight;
               const bottom = PADDING.top + chartHeight;
               const hovered = hoveredIndex === i;
               return <g key={`${p.date}-${i}`} onMouseEnter={() => setHoveredIndex(i)} onMouseLeave={() => setHoveredIndex(null)} className="cursor-pointer">
                 <rect x={x - slotWidth * 0.1} y={PADDING.top} width={groupWidth + slotWidth * 0.2} height={chartHeight} rx="8" fill={hovered ? "currentColor" : "transparent"} opacity="0.035" />
-                <rect x={x} y={bottom - completedHeight} width={barWidth} height={completedHeight} rx="5" fill="url(#publishedBar)" opacity={hovered ? 1 : 0.92} filter={hovered ? "url(#barShadow)" : undefined} />
+                <rect x={x} y={bottom - publishedHeight} width={barWidth} height={publishedHeight} rx="5" fill="url(#publishedBar)" opacity={hovered ? 1 : 0.92} filter={hovered ? "url(#barShadow)" : undefined} />
                 <rect x={x + barWidth + barGap} y={bottom - failedHeight} width={barWidth} height={failedHeight} rx="5" fill="url(#failedBar)" opacity={hovered ? 1 : 0.92} filter={hovered ? "url(#barShadow)" : undefined} />
                 <rect x={x + (barWidth + barGap) * 2} y={bottom - pendingHeight} width={barWidth} height={pendingHeight} rx="5" fill="url(#pendingBar)" opacity={hovered ? 1 : 0.92} filter={hovered ? "url(#barShadow)" : undefined} />
                 {hovered && <>
-                  {p.completed > 0 && <text x={x + barWidth / 2} y={bottom - completedHeight - 7} textAnchor="middle" className="fill-emerald-700 text-[10px] font-bold">{p.completed}</text>}
+                  {p.published > 0 && <text x={x + barWidth / 2} y={bottom - publishedHeight - 7} textAnchor="middle" className="fill-emerald-700 text-[10px] font-bold">{p.published}</text>}
                   {p.failed > 0 && <text x={x + barWidth + barGap + barWidth / 2} y={bottom - failedHeight - 7} textAnchor="middle" className="fill-rose-700 text-[10px] font-bold">{p.failed}</text>}
                   {p.pending > 0 && <text x={x + (barWidth + barGap) * 2 + barWidth / 2} y={bottom - pendingHeight - 7} textAnchor="middle" className="fill-indigo-700 text-[10px] font-bold">{p.pending}</text>}
                 </>}
@@ -120,16 +121,16 @@ export default function AnalyticsChart({ data }: AnalyticsChartProps) {
 
           </svg>
 
-          {hoveredIndex !== null && (() => {
+          {hoveredIndex !== null && displayData[hoveredIndex] && (() => {
             const point = displayData[hoveredIndex];
             const left = ((hoveredIndex + 0.5) / displayData.length) * 100;
             return <div className="absolute top-5 z-10 min-w-48 -translate-x-1/2 rounded-xl bg-gray-950/95 p-4 text-xs text-white shadow-2xl pointer-events-none" style={{ left: `${Math.min(86, Math.max(14, left))}%` }}>
               <p className="font-bold mb-3">{formatTooltipDate(point.date, view)}</p>
-              <Metric color="bg-green-500" label="Published" value={point.completed} />
+              <Metric color="bg-green-500" label="Published" value={point.published} />
               <Metric color="bg-red-500" label="Failed" value={point.failed} />
               <Metric color="bg-slate-400" label="Pending" value={point.pending} />
               <Metric color="bg-amber-400" label="Retry attempts" value={point.retryAttempts} />
-              <div className="border-t border-white/15 mt-2 pt-2 flex justify-between gap-5"><span className="text-white/70">Success rate</span><strong>{point.successRate.toFixed(1)}%</strong></div>
+              <div className="border-t border-white/15 mt-2 pt-2 flex justify-between gap-5"><span className="text-white/70">Scheduled success rate</span><strong>{point.scheduledCompleted + point.failed ? `${point.successRate.toFixed(1)}%` : "N/A"}</strong></div>
             </div>;
           })()}
         </div>
@@ -163,8 +164,8 @@ function Summary({ label, value, icon, tone }: { label: string; value: number | 
   </div>;
 }
 
-function aggregateWeekly(data: ScheduledPublishingPoint[]): ScheduledPublishingPoint[] {
-  const groups = new Map<string, ScheduledPublishingPoint[]>();
+function aggregateWeekly(data: PublishingActivityPoint[]): PublishingActivityPoint[] {
+  const groups = new Map<string, PublishingActivityPoint[]>();
   data.forEach((point) => {
     const date = new Date(`${point.date}T00:00:00`);
     const day = date.getDay();
@@ -174,13 +175,14 @@ function aggregateWeekly(data: ScheduledPublishingPoint[]): ScheduledPublishingP
   });
 
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, group]) => {
-    const completed = group.reduce((sum, p) => sum + p.completed, 0);
+    const published = group.reduce((sum, p) => sum + p.published, 0);
+    const scheduledCompleted = group.reduce((sum, p) => sum + p.scheduledCompleted, 0);
     const failed = group.reduce((sum, p) => sum + p.failed, 0);
-    const finished = completed + failed;
-    return { date, completed, failed,
+    const finished = scheduledCompleted + failed;
+    return { date, published, scheduledCompleted, failed,
       pending: group.reduce((sum, p) => sum + p.pending, 0),
       retryAttempts: group.reduce((sum, p) => sum + p.retryAttempts, 0),
-      successRate: finished === 0 ? 0 : Math.round((completed / finished) * 1000) / 10 };
+      successRate: finished === 0 ? 0 : Math.round((scheduledCompleted / finished) * 1000) / 10 };
   });
 }
 

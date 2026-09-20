@@ -52,11 +52,16 @@ public partial class AisamContext
             (PermissionOwner || PermissionChannelIds.Contains(i.Id)));
         m.Entity<SocialAccount>().HasQueryFilter(a=>!PermissionScopeEnabled || a.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || SocialIntegrations.Any(i=>i.SocialAccountId==a.Id)));
         m.Entity<Post>().HasQueryFilter(p=>!PermissionScopeEnabled ||
-            (PermissionV2Enabled ? Contents.Any(c=>c.Id==p.ContentId) :
+            (PermissionV2Enabled ? Contents.Any(c=>c.Id==p.ContentId &&
+                SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.WorkspaceId==PermissionWorkspaceId && i.BrandId==c.BrandId &&
+                    (PermissionOwner || PermissionChannelIds.Contains(i.Id)))) :
                 Contents.Any(c=>c.Id==p.ContentId && c.WorkspaceId==PermissionWorkspaceId &&
                     (c.PrimaryCreatorId==PermissionActorId || SocialIntegrations.Any(i=>i.Id==p.IntegrationId && i.BrandId==c.BrandId &&
                         i.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || PermissionChannelIds.Contains(i.Id)))))));
-        m.Entity<ContentCalendar>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId && Contents.Any(x=>x.Id==c.ContentId));
+        m.Entity<ContentCalendar>().HasQueryFilter(c=>!PermissionScopeEnabled || c.WorkspaceId==PermissionWorkspaceId &&
+            Contents.Any(x=>x.Id==c.ContentId && (!PermissionV2Enabled || PermissionOwner || c.IntegrationId.HasValue &&
+                SocialIntegrations.Any(i=>i.Id==c.IntegrationId && i.BrandId==x.BrandId && i.WorkspaceId==PermissionWorkspaceId &&
+                    (PermissionOwner || PermissionChannelIds.Contains(i.Id))))));
         m.Entity<Approval>().HasQueryFilter(a=>!PermissionScopeEnabled || Contents.Any(c=>c.Id==a.ContentId &&
             (!PermissionV2Enabled || PermissionOwner || c.TeamId.HasValue && PermissionWriteTeamIds.Contains(c.TeamId.Value) ||
                 a.SnapshotId!=null && a.SnapshotId==c.ApprovedSnapshotId && a.Status==AISAM.Data.Enumeration.ContentStatusEnum.Approved)));
@@ -71,7 +76,7 @@ public partial class AisamContext
         m.Entity<Ad>().HasQueryFilter(a=>!PermissionScopeEnabled || AdSets.Any(s=>s.Id==a.AdSetId));
         m.Entity<AdCreative>().HasQueryFilter(a=>!PermissionScopeEnabled || a.ContentId.HasValue && Contents.Any(c=>c.Id==a.ContentId) || Ads.Any(ad=>ad.CreativeId==a.Id));
         m.Entity<CampaignInsightSnapshot>().HasQueryFilter(s=>!PermissionScopeEnabled || s.WorkspaceId==PermissionWorkspaceId && AdCampaigns.Any(c=>c.Id==s.CampaignId));
-        m.Entity<PerformanceReport>().HasQueryFilter(r=>!PermissionScopeEnabled || (PermissionOwner || PermissionManager) &&
+        m.Entity<PerformanceReport>().HasQueryFilter(r=>!PermissionScopeEnabled || (PermissionV2Enabled || PermissionOwner || PermissionManager) &&
             (r.PostId.HasValue && Posts.Any(p=>p.Id==r.PostId) || r.AdId.HasValue && Ads.Any(a=>a.Id==r.AdId)));
         m.Entity<VideoGenerationJob>().HasQueryFilter(v=>!PermissionScopeEnabled || v.WorkspaceId==PermissionWorkspaceId && (PermissionOwner || v.UserId==PermissionActorId));
         // Legacy conversations lack creator attribution: do not infer it from workspace membership.
