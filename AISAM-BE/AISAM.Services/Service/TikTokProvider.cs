@@ -483,8 +483,20 @@ public sealed class TikTokProvider : IProviderService
     {
         try
         {
-            var error = JsonSerializer.Deserialize<TikTokErrorEnvelope>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            return error?.ErrorDescription ?? error?.Error?.Message ?? fallback;
+            using var document = JsonDocument.Parse(content);
+            var root = document.RootElement;
+            if (root.TryGetProperty("error_description", out var description) &&
+                description.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(description.GetString()))
+                return description.GetString()!;
+            if (root.TryGetProperty("error", out var error))
+            {
+                if (error.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(error.GetString()))
+                    return error.GetString()!;
+                if (error.ValueKind == JsonValueKind.Object && error.TryGetProperty("message", out var message) &&
+                    message.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(message.GetString()))
+                    return message.GetString()!;
+            }
+            return fallback;
         }
         catch (JsonException)
         {

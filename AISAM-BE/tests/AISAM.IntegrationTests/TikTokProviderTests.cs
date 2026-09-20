@@ -58,6 +58,21 @@ public class TikTokProviderTests
     }
 
     [Fact]
+    public async Task ExchangeCodeAsync_PreservesOAuthStringErrorDescription()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.BadRequest, """
+        {"error":"invalid_grant","error_description":"Authorization code was expired or already used."}
+        """);
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.ExchangeCodeAsync("expired-code", "https://client/social-callback/tiktok"));
+
+        Assert.Equal("Authorization code was expired or already used.", error.Message);
+    }
+
+    [Fact]
     public async Task ExchangeCodeAsync_RejectsTokenWithoutVideoPublishScope()
     {
         var handler = new RecordingHandler();
