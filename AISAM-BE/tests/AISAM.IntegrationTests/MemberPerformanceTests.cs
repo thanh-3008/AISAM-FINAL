@@ -71,8 +71,10 @@ public class MemberPerformanceTests
         var other=new Content{WorkspaceId=w.Id,BrandId=hidden.Id,PrimaryCreatorId=creator.Id,CreatedAt=start};
         var outsidePeriod=new Content{WorkspaceId=w.Id,BrandId=brand.Id,PrimaryCreatorId=creator.Id,CreatedAt=end};
         var channel=new SocialIntegration{WorkspaceId=w.Id,BrandId=brand.Id};
-        var post=new Post{ContentId=c.Id,IntegrationId=channel.Id,PublishedAt=start.AddDays(1),PublishedByUserId=owner.Id,ExternalPostId="same"};
+        var snapshotId=Guid.NewGuid();
+        var post=new Post{ContentId=c.Id,IntegrationId=channel.Id,PublishedAt=start.AddDays(1),ExternalPostId="same"};
         db.AddRange(c,other,outsidePeriod,channel,post,
+            new PublishOperation{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,SnapshotId=snapshotId,ActorId=owner.Id,ProviderId="same",Status="Published"},
             new Content{WorkspaceId=w.Id,BrandId=brand.Id,CreatedAt=start},
             new Post{ContentId=c.Id,IntegrationId=channel.Id,PublishedAt=start.AddDays(1).AddSeconds(1),PublishedByUserId=owner.Id,ExternalPostId="same"},
             new PerformanceReport{PostId=post.Id,ReportDate=start,Engagement=10,Impressions=100,Reach=70},
@@ -100,6 +102,7 @@ public class MemberPerformanceTests
         Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,start,end))).StatusCode);
         var ownerResult=await service.GetAsync(owner.Id,w.Id,start,end);
         Assert.Equal(1,ownerResult.UnattributedContents);Assert.Equal(2,ownerResult.Items.Single(r=>r.MemberId==creator.Id).ContentsCreated);
+        Assert.Equal(1,ownerResult.Items.Single(r=>r.MemberId==owner.Id).PublisherPublishedPosts);
         Assert.Null(ownerResult.Items.Single(r=>r.MemberId==owner.Id).EngagementRate);
         Assert.Null(MemberPerformanceService.Rate(0,0));
         await Assert.ThrowsAsync<ArgumentException>(()=>service.GetAsync(owner.Id,w.Id,end,start));

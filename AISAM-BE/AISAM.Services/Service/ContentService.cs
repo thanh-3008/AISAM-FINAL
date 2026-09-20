@@ -782,6 +782,8 @@ public sealed class ContentService : IContentService
                 ContentId = content.Id,
                 IntegrationId = integration.Id,
                 SnapshotId = frozen?.Id,
+                PublishedByUserId = _context?.ExecutionActorId,
+                ExecutedBySystem = _context?.ExecutionIsSystem == true,
                 ExternalPostId = publishResult.ProviderPostId,
                 PublishedAt = publishResult.PostedAt ?? DateTime.UtcNow,
                 Status = ContentStatusEnum.Published

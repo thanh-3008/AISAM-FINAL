@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
+import { inclusiveToExclusiveUtc } from "@/lib/dateRanges";
 
 type Option={id:string;name:string};
 interface Row {memberId:string;name:string;contentsCreated:number;creatorPublishedPosts:number;publisherPublishedPosts:number;reviewedSubmissions:number;approvalRate?:number|null;completedSchedules:number;pendingSchedules:number;failedSchedules:number;onTimeRate?:number|null;failedPublishRate?:number|null;turnaroundHours?:number|null;postsWithInsights:number;engagement?:number|null;impressions?:number|null;reach?:number|null;engagementRate?:number|null;insightsUpdatedAt?:string|null}
@@ -18,8 +19,8 @@ export default function MemberPerformancePage(){
   const [options,setOptions]=useState<{brands:Option[];teams:Option[];members:Option[]}>({brands:[],teams:[],members:[]});
   useEffect(()=>{
     let active=true; setResult(null);setError("");setLoading(true);
-    if(!from||!to||from>=to){setError("Start date must be before end date (UTC). End date is exclusive.");setLoading(false);return;}
-    const query=new URLSearchParams({from:`${from}T00:00:00Z`,to:`${to}T00:00:00Z`,page:String(page),pageSize:"20"});
+    if(!from||!to||from>to){setError("Start date must be on or before end date (UTC).");setLoading(false);return;}
+    const query=new URLSearchParams({from:`${from}T00:00:00Z`,to:inclusiveToExclusiveUtc(to),page:String(page),pageSize:"20"});
     if(brandId)query.set("brandId",brandId);if(teamId)query.set("teamId",teamId);if(memberId)query.set("memberId",memberId);
     apiClient(`/team/member-performance?${query}`).then(response=>{
       if(!active)return; if(!response?.success||!response.data)throw new Error("Unable to load performance data.");
@@ -34,7 +35,7 @@ export default function MemberPerformancePage(){
     <p className="text-sm leading-6 text-on-surface-variant">Track team contributions, publishing progress, and content performance in one report.</p>
     <div className="grid grid-cols-1 items-end gap-4 rounded-2xl border border-outline-variant/40 bg-surface p-5 shadow-sm sm:grid-cols-2 xl:grid-cols-6 [&_label]:text-xs [&_label]:font-semibold [&_label]:text-on-surface-variant">
       <label>From date<input aria-label="From date" type="date" value={from} onChange={e=>{setFrom(e.target.value);setPage(1);}} className="mt-2 block w-full min-w-0 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>
-      <label>To date (exclusive)<input aria-label="To date" type="date" value={to} onChange={e=>{setTo(e.target.value);setPage(1);}} className="mt-2 block w-full min-w-0 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>
+      <label>To date (inclusive)<input aria-label="To date" type="date" value={to} onChange={e=>{setTo(e.target.value);setPage(1);}} className="mt-2 block w-full min-w-0 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>
       {([{label:"Brand",value:brandId,items:options.brands,set:setBrand},{label:"Team",value:teamId,items:options.teams,set:setTeam},{label:"Member",value:memberId,items:options.members,set:setMember}]).map(filter=><label key={filter.label}>{filter.label}<select aria-label={filter.label} value={filter.value} onChange={e=>{filter.set(e.target.value);if(filter.label!=="Member")setMember("");setPage(1);}} className="mt-2 block w-full min-w-0 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="">All allowed</option>{filter.items.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>)}
       <button disabled={loading} onClick={()=>setRefresh(n=>n+1)} className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50">Reload</button>
     </div>
@@ -52,7 +53,7 @@ export default function MemberPerformancePage(){
           <p className="text-3xl font-bold tracking-tight tabular-nums">{metric(card.value)}</p><p className="mt-2 text-xs text-on-surface-variant">{card.note}</p>
         </article>)}
       </section>
-      <p className="text-xs text-on-surface-variant">Date range in UTC, exclusive of end date. Creators only view their own data.</p>
+      <p className="text-xs text-on-surface-variant">Date range in UTC, including the entire end date. Creators only view their own data.</p>
       <p className="text-xs text-on-surface-variant">Report updated: {new Date(result.updatedAt).toLocaleString("vi-VN")} · {result.total} members in scope.</p>
       {result.unattributedContents!=null&&<p className="rounded-xl border border-amber-200/60 bg-amber-50 px-4 py-3 text-sm text-amber-800">Contents with unattributed Creator: {result.unattributedContents}. Not assigned to individual metrics.</p>}
       {result.items.length===0?<div className="rounded-2xl border border-dashed border-outline-variant bg-surface px-6 py-16 text-center"><span aria-hidden="true" className="material-symbols-outlined mb-3 !text-4xl text-primary/50">group</span><h2 className="font-semibold">No matching results</h2><p className="mt-2 text-sm text-on-surface-variant">Try changing the date range or member filter.</p></div>:<>

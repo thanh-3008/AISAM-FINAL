@@ -103,11 +103,15 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
             var postsQuery=from p in db.Posts.IgnoreQueryFilters().AsNoTracking()
                 join c in contents on p.ContentId equals c.Id
                 join i in db.SocialIntegrations.IgnoreQueryFilters().AsNoTracking() on p.IntegrationId equals i.Id
+                let operationActor=db.PublishOperations.IgnoreQueryFilters().AsNoTracking()
+                    .Where(o=>o.WorkspaceId==workspace && o.ContentId==p.ContentId && o.IntegrationId==p.IntegrationId && o.Status=="Published" &&
+                        ((p.ExternalPostId!=null && o.ProviderId==p.ExternalPostId) || (p.SnapshotId!=null && o.SnapshotId==p.SnapshotId)))
+                    .OrderByDescending(o=>o.UpdatedAt).Select(o=>(Guid?)o.ActorId).FirstOrDefault()
                 where !p.IsDeleted && !i.IsDeleted && i.WorkspaceId==workspace && i.BrandId==c.BrandId && p.Status==ContentStatusEnum.Published && p.PublishedAt>=@from && p.PublishedAt<to
-                    && (c.PrimaryCreatorId==member.Id || p.PublishedByUserId==member.Id)
+                    && (c.PrimaryCreatorId==member.Id || p.PublishedByUserId==member.Id || operationActor==member.Id)
                     && (!v2 || owner || db.TeamChannelAccesses.IgnoreQueryFilters().Any(g=>g.IntegrationId==p.IntegrationId && g.ScopeEnabledV2 &&
                         db.TeamBrands.IgnoreQueryFilters().Any(tb=>tb.Id==g.TeamBrandId && tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive)))
-                select new {Post=p,Creator=c.PrimaryCreatorId};
+                select new {Post=p,Creator=c.PrimaryCreatorId,OperationActor=operationActor};
             var allPosts=await postsQuery.ToListAsync(ct);
             var posts=allPosts.GroupBy(p=>(p.Post.IntegrationId,Key:string.IsNullOrEmpty(p.Post.ExternalPostId)?p.Post.Id.ToString():p.Post.ExternalPostId))
                 .Select(g=>g.OrderBy(p=>p.Post.PublishedAt).ThenBy(p=>p.Post.Id).First()).ToList();
@@ -130,7 +134,7 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
             var completed=schedules.Where(s=>s.Status==ScheduleStatusEnum.Completed).ToList();
             var timed=completed.Where(s=>s.ExecutedAt.HasValue).ToList();
             var failed=schedules.Count(s=>s.Status==ScheduleStatusEnum.Failed);
-            rows.Add(new(member.Id,member.Name,created,creatorPosts.Length,posts.Count(p=>p.Post.PublishedByUserId==member.Id),decisions.Count,
+            rows.Add(new(member.Id,member.Name,created,creatorPosts.Length,posts.Count(p=>(p.Post.PublishedByUserId??p.OperationActor)==member.Id),decisions.Count,
                 Rate(decisions.Count(a=>a.Status==ContentStatusEnum.Approved),decisions.Count),completed.Count,
                 schedules.Count(s=>s.Status is ScheduleStatusEnum.Pending or ScheduleStatusEnum.Processing),failed,
                 Rate(timed.Count(s=>Math.Abs((s.ExecutedAt!.Value-s.ScheduledAt!.Value).TotalMinutes)<=5),timed.Count),Rate(failed,failed+completed.Count),
