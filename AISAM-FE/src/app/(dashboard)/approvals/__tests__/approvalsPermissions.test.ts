@@ -1,21 +1,23 @@
 import { describe, it, expect } from "vitest";
+import { canReviewContentWithRbac } from "@/lib/approvalPermissions";
 
 describe("Approvals Permission Filtering and Role Fallback", () => {
   it("filters out schedule failure items so only valid content GUIDs are checked", () => {
     const rawItems = [
       { id: "11111111-1111-1111-1111-111111111111", approvalSource: "content", status: "Awaiting Approval" },
       { id: "schedule-22222222-2222-2222-2222-222222222222", approvalSource: "schedule", status: "Publish Failed" },
-      { id: "33333333-3333-3333-3333-333333333333", approvalSource: "content", status: "Awaiting Approval" },
+      { id: "33333333-3333-3333-3333-333333333333", approvalSource: "content", status: "Approved" },
     ];
 
     const contentItemsForReview = rawItems.filter(
-      (item) => item.approvalSource === "content" && !item.id.startsWith("schedule-")
+      (item) => item.approvalSource === "content" &&
+        !item.id.startsWith("schedule-") &&
+        item.status === "Awaiting Approval"
     );
 
-    expect(contentItemsForReview).toHaveLength(2);
+    expect(contentItemsForReview).toHaveLength(1);
     expect(contentItemsForReview.map((item) => item.id)).toEqual([
       "11111111-1111-1111-1111-111111111111",
-      "33333333-3333-3333-3333-333333333333",
     ]);
 
     // Ensure none have the "schedule-" prefix which causes HTTP 400 on backend
@@ -53,6 +55,24 @@ describe("Approvals Permission Filtering and Role Fallback", () => {
     const workspaceRole: string = "Member";
     const isOwnerOrManager = workspaceRole === "Owner" || workspaceRole === "WorkspaceManager";
     expect(isOwnerOrManager).toBe(false);
+  });
+
+  it("allows a Team Manager immediately for pending content in their Team", () => {
+    const rbac = {
+      contractVersion: 2 as const,
+      revision: "r1",
+      workspaceRole: "Member" as const,
+      actions: [],
+      scopes: [],
+      teams: [
+        { teamId: "team-a", role: "Manager" as const },
+        { teamId: "team-b", role: "Viewer" as const },
+      ],
+    };
+
+    expect(canReviewContentWithRbac(rbac, "team-a")).toBe(true);
+    expect(canReviewContentWithRbac(rbac, "team-b")).toBe(false);
+    expect(canReviewContentWithRbac(rbac, undefined)).toBe(false);
   });
 
   it("maps index correctly through filtered content items for delegated permissions", () => {

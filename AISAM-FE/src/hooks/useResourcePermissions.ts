@@ -21,6 +21,10 @@ export function useResourcePermissions(checks: PermissionCheck[]): ResourcePermi
   useEffect(() => {
     let cancelled = false;
     const [, requests] = JSON.parse(key) as [string, PermissionCheck[]];
+    if (requests.length === 0) {
+      setResult({ key, allowed: [] });
+      return () => { cancelled = true; };
+    }
     checkPermissions(requests).then(allowed => { if (!cancelled) setResult({ key, allowed }); })
       .catch(() => { if (!cancelled) setResult({ key, allowed: [] }); });
     return () => { cancelled = true; };

@@ -22,6 +22,7 @@ import {
 import type { ContentItem } from "@/services/contentService";
 import type { ScheduleItem } from "@/services/scheduleService";
 import { getApprovalBrands, matchesApprovalBrand } from "@/lib/approvalBrands";
+import { canReviewContentWithRbac } from "@/lib/approvalPermissions";
 
 type TabKey = "all" | "pending" | "approved" | "published" | "failed" | "rejected";
 type ApprovalStatus = ContentItem["status"] | "Publish Failed" | "Failed" | "Post Failed" | "PublishFailed";
@@ -415,29 +416,38 @@ export default function ApprovalsPage() {
       );
   const [items, setItems] = useState<ApprovalListItem[]>([]);
   const contentItemsForReview = useMemo(
-    () => items.filter((item) => item.approvalSource === "content" && !item.id.startsWith("schedule-")),
+    () => items.filter((item) =>
+      item.approvalSource === "content" &&
+      !item.id.startsWith("schedule-") &&
+      isPendingStatus(item.status)
+    ),
     [items]
   );
   const reviewChecks = useMemo(
-    () =>
+    () => rbac
+      ? []
+      :
       contentItemsForReview.map((item) => ({
         kind: Kind.Content,
         resourceId: item.id,
         permission: Permission.ApprovalReview,
       })),
-    [contentItemsForReview]
+    [rbac, contentItemsForReview]
   );
   const reviewAllowed = useResourcePermissions(reviewChecks);
   const isReviewAllowed = useCallback(
     (id: string) => {
-      if (isOwnerOrManager) return true;
       const index = contentItemsForReview.findIndex((item) => item.id === id);
       if (index === -1) return false;
+      if (rbac) {
+        return canReviewContentWithRbac(rbac, contentItemsForReview[index].teamId);
+      }
+      if (isOwnerOrManager) return true;
       return reviewAllowed(index);
     },
-    [isOwnerOrManager, contentItemsForReview, reviewAllowed]
+    [rbac, isOwnerOrManager, contentItemsForReview, reviewAllowed]
   );
-  const canReview = isOwnerOrManager || contentItemsForReview.some((_, index) => reviewAllowed(index));
+  const canReview = contentItemsForReview.some((item) => isReviewAllowed(item.id));
   const [teamMembers, setTeamMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);

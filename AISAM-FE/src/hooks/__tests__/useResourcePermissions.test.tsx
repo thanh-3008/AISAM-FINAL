@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { useResourcePermissions } from "../useResourcePermissions";
 import { checkPermissions } from "@/services/permissionService";
 vi.mock("@/services/permissionService", () => ({ checkPermissions: vi.fn() }));
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 it("fails closed and ignores a late permission result for the previous resource", async () => {
   let finish!: (value: boolean[]) => void;
   vi.mocked(checkPermissions).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce([false]);
@@ -13,4 +13,10 @@ it("fails closed and ignores a late permission result for the previous resource"
   await waitFor(() => expect(checkPermissions).toHaveBeenCalledTimes(2));
   await act(async () => finish([true]));
   expect(result.current(0)).toBe(false);
+});
+
+it("does not call the API for an empty permission batch", async () => {
+  const { result } = renderHook(() => useResourcePermissions([]));
+  await waitFor(() => expect(result.current.isReady).toBe(true));
+  expect(checkPermissions).not.toHaveBeenCalled();
 });
