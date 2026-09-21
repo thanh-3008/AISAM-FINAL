@@ -17,8 +17,10 @@ public sealed class PostRepository : IPostRepository
 
     public async Task<Post?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await Query()
+        var post = await QueryWithAttribution()
             .FirstOrDefaultAsync(post => post.Id == id && !post.IsDeleted, cancellationToken);
+        await PopulateTeamNamesAsync(post is null ? [] : [post], cancellationToken);
+        return post;
     }
 
     public async Task<Post?> GetByIntegrationAndExternalPostIdAsync(Guid integrationId, string externalPostId, CancellationToken cancellationToken = default)
@@ -59,7 +61,8 @@ public sealed class PostRepository : IPostRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(post => !post.IsDeleted && post.Content.ProfileId == profileId);
+        var query = QueryWithAttribution().AsNoTracking()
+            .Where(post => !post.IsDeleted && post.Content.ProfileId == profileId);
 
         if (brandId.HasValue)
         {
@@ -71,13 +74,14 @@ public sealed class PostRepository : IPostRepository
             query = query.Where(post => post.Status == status.Value);
         }
 
-        query = query.OrderByDescending(post => post.PublishedAt);
+        query = query.OrderByDescending(post => post.PublishedAt).ThenByDescending(post => post.Id);
 
         var totalCount = await query.CountAsync(cancellationToken);
         var data = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
+        await PopulateTeamNamesAsync(data, cancellationToken);
 
         return new PagedResult<Post>
         {
@@ -92,12 +96,14 @@ public sealed class PostRepository : IPostRepository
     {
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var query = Query().Where(p => !p.IsDeleted && p.Content.WorkspaceId == workspaceId);
+        var query = QueryWithAttribution().AsNoTracking()
+            .Where(p => !p.IsDeleted && p.Content.WorkspaceId == workspaceId);
         if (brandId.HasValue) query = query.Where(p => p.Content.BrandId == brandId.Value);
         if (status.HasValue) query = query.Where(p => p.Status == status.Value);
-        query = query.OrderByDescending(p => p.PublishedAt);
+        query = query.OrderByDescending(p => p.PublishedAt).ThenByDescending(p => p.Id);
         var totalCount = await query.CountAsync(cancellationToken);
         var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        await PopulateTeamNamesAsync(data, cancellationToken);
         return new PagedResult<Post> { Data = data, TotalCount = totalCount, Page = page, PageSize = pageSize };
     }
 
@@ -114,5 +120,27 @@ public sealed class PostRepository : IPostRepository
             .Include(post => post.Content)
                 .ThenInclude(content => content.Brand)
             .Include(post => post.Integration);
+    }
+
+    private IQueryable<Post> QueryWithAttribution()
+    {
+        return Query()
+            .Include(post => post.Content)
+                .ThenInclude(content => content.PrimaryCreator)
+            .Include(post => post.Content)
+                .ThenInclude(content => content.Approvals.Where(approval => !approval.IsDeleted))
+                    .ThenInclude(approval => approval.ApproverUser);
+    }
+
+    private async Task PopulateTeamNamesAsync(IEnumerable<Post> posts, CancellationToken cancellationToken)
+    {
+        var rows = posts.Where(post => post.Content.TeamId.HasValue).ToList();
+        var teamIds = rows.Select(post => post.Content.TeamId!.Value).Distinct().ToArray();
+        if (teamIds.Length == 0) return;
+        var names = await _context.Teams.IgnoreQueryFilters().AsNoTracking()
+            .Where(team => teamIds.Contains(team.Id))
+            .ToDictionaryAsync(team => team.Id, team => team.Name, cancellationToken);
+        foreach (var post in rows)
+            post.Content.TeamName = names.GetValueOrDefault(post.Content.TeamId!.Value);
     }
 }

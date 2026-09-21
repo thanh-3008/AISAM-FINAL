@@ -62,6 +62,9 @@ export default function PostsPage() {
             data = data.filter((p) =>
               (p.contentTitle || "").toLowerCase().includes(q) ||
               (p.brandName || "").toLowerCase().includes(q) ||
+              (p.creatorName || "").toLowerCase().includes(q) ||
+              (p.reviewerName || "").toLowerCase().includes(q) ||
+              (p.teamName || "").toLowerCase().includes(q) ||
               (p.caption || "").toLowerCase().includes(q)
             );
           }

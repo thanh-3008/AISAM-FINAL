@@ -14,12 +14,16 @@ public class PostRepositoryTests
     {
         await using var context = CreateContext();
         var fixture = SeedFixture(context);
+        context.ChangeTracker.Clear();
         var repository = new PostRepository(context);
 
         var result = await repository.GetPagedByProfileIdAsync(fixture.Profile.Id, new PaginationRequest());
 
         Assert.Single(result.Data);
         Assert.Equal(fixture.Post.Id, result.Data[0].Id);
+        Assert.Equal("Content Creator", result.Data[0].Content.PrimaryCreator?.FullName);
+        Assert.Equal("Marketing Team", result.Data[0].Content.TeamName);
+        Assert.Equal("Reviewer", Assert.Single(result.Data[0].Content.Approvals).ReviewerNameSnapshot);
     }
 
     [Fact]
@@ -55,12 +59,14 @@ public class PostRepositoryTests
 
     private static PostRepositoryFixture SeedFixture(AisamContext context)
     {
+        var workspace = new Workspace { Id = Guid.NewGuid(), Name = "Workspace" };
         var owner = new User
         {
             Id = Guid.NewGuid(),
             Email = $"{Guid.NewGuid():N}@example.com",
             PasswordHash = "hash",
-            PasswordSalt = "salt"
+            PasswordSalt = "salt",
+            FullName = "Content Creator"
         };
         var otherUser = new User
         {
@@ -89,6 +95,7 @@ public class PostRepositoryTests
         {
             Id = Guid.NewGuid(),
             ProfileId = ownerProfile.Id,
+            WorkspaceId = workspace.Id,
             Name = "Owner Brand"
         };
         var otherBrand = new Brand
@@ -101,11 +108,17 @@ public class PostRepositoryTests
         {
             Id = Guid.NewGuid(),
             ProfileId = ownerProfile.Id,
+            WorkspaceId = workspace.Id,
             BrandId = ownerBrand.Id,
             Brand = ownerBrand,
+            PrimaryCreatorId = owner.Id,
+            TeamId = Guid.NewGuid(),
             AdType = AdTypeEnum.TextOnly,
             TextContent = "Owner post"
         };
+        var team = new Team { Id = ownerContent.TeamId.Value, Name = "Marketing Team", WorkspaceId = workspace.Id };
+        var approval = new Approval { ContentId = ownerContent.Id, ApproverUserId = otherUser.Id,
+            ReviewerNameSnapshot = "Reviewer", Status = ContentStatusEnum.Approved, ApprovedAt = DateTime.UtcNow };
         var otherContent = new Content
         {
             Id = Guid.NewGuid(),
@@ -172,10 +185,16 @@ public class PostRepositoryTests
             Status = ContentStatusEnum.Published
         };
 
+        context.Workspaces.Add(workspace);
         context.Users.AddRange(owner, otherUser);
+        context.WorkspaceMembers.AddRange(
+            new WorkspaceMember { WorkspaceId = workspace.Id, UserId = owner.Id, IsActive = true },
+            new WorkspaceMember { WorkspaceId = workspace.Id, UserId = otherUser.Id, IsActive = true });
         context.Profiles.AddRange(ownerProfile, otherProfile);
         context.Brands.AddRange(ownerBrand, otherBrand);
+        context.Teams.Add(team);
         context.Contents.AddRange(ownerContent, otherContent);
+        context.Approvals.Add(approval);
         context.SocialAccounts.AddRange(ownerAccount, otherAccount);
         context.SocialIntegrations.AddRange(ownerIntegration, otherIntegration);
         context.Posts.AddRange(ownerPost, otherPost);

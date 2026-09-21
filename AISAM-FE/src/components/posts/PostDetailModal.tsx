@@ -92,6 +92,15 @@ export default function PostDetailModal({ post, onClose }: PostDetailModalProps)
               <DetailRow label="Brand">
                 <span>{post.brandName || "—"}</span>
               </DetailRow>
+              <DetailRow label="Created by">
+                <span>{post.creatorName || "Unavailable"}</span>
+              </DetailRow>
+              <DetailRow label="Reviewed by">
+                <span>{post.reviewerName || "Unavailable"}</span>
+              </DetailRow>
+              <DetailRow label="Team">
+                <span>{post.teamName || "Unassigned"}</span>
+              </DetailRow>
               <DetailRow label="Type">
                 <span className="uppercase font-semibold tracking-wide">{post.type || "—"}</span>
               </DetailRow>

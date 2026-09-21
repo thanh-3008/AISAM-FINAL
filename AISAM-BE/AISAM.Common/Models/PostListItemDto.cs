@@ -11,6 +11,12 @@ public sealed class PostListItemDto
     public string? ContentTitle { get; set; }
     public Guid? BrandId { get; set; }
     public string? BrandName { get; set; }
+    public Guid? CreatorId { get; set; }
+    public string? CreatorName { get; set; }
+    public Guid? ReviewerId { get; set; }
+    public string? ReviewerName { get; set; }
+    public Guid? TeamId { get; set; }
+    public string? TeamName { get; set; }
     public string? Platform { get; set; }
     public string? Type { get; set; }
     public string? Caption { get; set; }

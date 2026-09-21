@@ -34,6 +34,14 @@ function TypeBadge({ type }: { type?: string | null }) {
   );
 }
 
+function AttributionLine({ icon, label, value }: { icon: string; label: string; value?: string | null }) {
+  return <div className="flex min-w-0 items-center gap-1.5" title={`${label}: ${value || "Unavailable"}`}>
+    <span className="material-symbols-outlined shrink-0 text-[15px] text-outline/70">{icon}</span>
+    <span className="shrink-0 text-[11px] text-outline">{label}</span>
+    <span className={`max-w-40 truncate text-label-xs font-semibold ${value ? "text-on-surface" : "text-outline/60"}`}>{value || "Unavailable"}</span>
+  </div>;
+}
+
 function ContentIcon({ type, imageUrl, imageUrls, videoUrl, thumbnailUrl }: { type?: string | null; imageUrl?: string | null; imageUrls?: string[] | null; videoUrl?: string | null; thumbnailUrl?: string | null }) {
   const icon = type === "VIDEO" ? "movie" : type === "IMAGE" ? "image" : "article";
   const displayImage = imageUrls?.[0] || thumbnailUrl || (imageUrl && !imageUrl.startsWith("[") ? imageUrl : null);
@@ -106,6 +114,14 @@ export default function PostRow({
             <span className="text-label-xs text-outline">{post.brandName}</span>
             <TypeBadge type={post.type} />
           </div>
+        </div>
+      </td>
+
+      <td className="px-6 py-4">
+        <div className="flex min-w-[190px] flex-col gap-1.5">
+          <AttributionLine icon="person" label="Created by" value={post.creatorName} />
+          <AttributionLine icon="verified_user" label="Reviewed by" value={post.reviewerName} />
+          <AttributionLine icon="groups" label="Team" value={post.teamName} />
         </div>
       </td>
 
