@@ -55,6 +55,7 @@ afterEach(() => {
 it("renders workspace and Team roles as separate RBAC v2 concepts", async () => {
   render(<TeamPage />);
 
+  fireEvent.click(await screen.findByRole("button", { name: "Workspace members" }));
   expect(await screen.findByText("Alice Smith")).toBeTruthy();
   expect(screen.getAllByText("Workspace members").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Member").length).toBeGreaterThan(0);
@@ -62,6 +63,7 @@ it("renders workspace and Team roles as separate RBAC v2 concepts", async () => 
 
   const performanceLink = screen.getByRole("link", { name: /Member Performance/i });
   expect(performanceLink.getAttribute("href")).toBe("/team/performance");
+  fireEvent.click(screen.getByRole("button", { name: "Teams" }));
   expect(screen.getByRole("button", { name: /Create Team/i })).toBeTruthy();
   expect(apiClient).toHaveBeenCalledWith("/teams/manage");
   expect(apiClient).toHaveBeenCalledWith("/workspace-members");
@@ -70,8 +72,8 @@ it("renders workspace and Team roles as separate RBAC v2 concepts", async () => 
 
 it("filters workspace members and Teams independently", async () => {
   render(<TeamPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Workspace members" }));
   expect(await screen.findByText("Alice Smith")).toBeTruthy();
-  expect(await screen.findByRole("button", { name: "Marketing" })).toBeTruthy();
 
   fireEvent.change(screen.getByLabelText("Search workspace members"), { target: { value: "bob" } });
   expect(screen.queryByText("alice@example.com")).toBeNull();
@@ -82,6 +84,8 @@ it("filters workspace members and Teams independently", async () => {
   expect(screen.getByText("alice@example.com")).toBeTruthy();
   expect(screen.queryByText("bob@example.com")).toBeNull();
 
+  fireEvent.click(screen.getByRole("button", { name: "Teams" }));
+  expect(await screen.findByRole("button", { name: "Marketing" })).toBeTruthy();
   fireEvent.change(screen.getByLabelText("Search Team"), { target: { value: "archive" } });
   expect(screen.queryByRole("button", { name: "Marketing" })).toBeNull();
   expect(screen.getByRole("button", { name: "Archive Team" })).toBeTruthy();
@@ -96,6 +100,7 @@ it("shows pending invitations and allows the workspace owner to cancel one", asy
   vi.spyOn(window, "confirm").mockReturnValue(true);
   render(<TeamPage />);
 
+  fireEvent.click(await screen.findByRole("button", { name: "Invitations" }));
   expect(await screen.findByText("pending@example.com")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Cancel invitation pending@example.com" }));
 

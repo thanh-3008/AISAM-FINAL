@@ -11,6 +11,8 @@ namespace AISAM.API.Controllers;
 public sealed class ResourceAssignmentsController(AssignmentService assignments,AISAM.Repositories.AisamContext db) : ControllerBase
 {
     public sealed record ChangeRequest(string ExpectedRevision, bool CanView=false, bool CanPublish=false, bool CanManage=false);
+    public sealed record BatchTeamRequest(Guid TeamId, bool Active, IReadOnlyList<Guid> ChannelIds);
+    public sealed record BatchChangeRequest(string ExpectedRevision, IReadOnlyList<BatchTeamRequest> Teams);
     private Guid Actor => UserClaimsHelper.GetUserIdOrThrow(User);
     private Guid Workspace => WorkspaceContextHelper.GetActiveWorkspaceIdOrThrow(HttpContext);
     [HttpGet("api/teams")]
@@ -39,6 +41,10 @@ public sealed class ResourceAssignmentsController(AssignmentService assignments,
     }
     [HttpGet("api/brands/{brandId:guid}/access")]
     public Task<IActionResult> Read(Guid brandId,CancellationToken ct) => Execute(()=>assignments.ReadAsync(Actor,Workspace,brandId,ct));
+    [HttpPut("api/brands/{brandId:guid}/access")]
+    public Task<IActionResult> ChangeBatch(Guid brandId,BatchChangeRequest request,CancellationToken ct) =>
+        Execute(()=>assignments.ChangeBatchAsync(new(Actor,Workspace,brandId,request.ExpectedRevision,
+            request.Teams?.Select(t=>new AssignmentTeamState(t.TeamId,t.Active,t.ChannelIds??Array.Empty<Guid>())).ToArray()??[]),ct));
     [HttpPut("api/brands/{brandId:guid}/teams/{teamId:guid}")]
     public Task<IActionResult> Grant(Guid brandId,Guid teamId,ChangeRequest request,CancellationToken ct) =>
         Execute(()=>assignments.ChangeAsync(new(Actor,Workspace,brandId,teamId,request.ExpectedRevision,true),ct));
