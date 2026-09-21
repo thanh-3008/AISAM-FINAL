@@ -93,4 +93,43 @@ describe("TikTok callback relay", () => {
     expect(html).toContain("aisam.ddns.net");
     expect(html).toContain("fallbackApiBaseUrl");
   });
+
+  it("does not redirect when state is missing or invalid, avoiding self-redirect loops", () => {
+    const request = new NextRequest("https://aisam.ddns.net/social-callback/tiktok");
+
+    const response = GET(request);
+
+    // Must return 200 (error card rendered), NOT 302 redirecting to itself
+    expect(response.status).toBe(200);
+  });
+
+  it("does not loop when behind an HTTP reverse-proxy where request protocol is http but x-forwarded-host matches state", () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        State: "test-state-1234",
+        ProfileId: "00000000-0000-0000-0000-000000000001",
+        Provider: "tiktok",
+        Origin: "https://aisam.ddns.net",
+        RedirectUri: "https://aisam.ddns.net/social-callback/tiktok",
+      }),
+    ).toString("base64url");
+    const state = `${payload}.mock_signature`;
+
+    // Simulated Next.js request behind Nginx: incoming URL is http://127.0.0.1:3001,
+    // but Nginx sets x-forwarded-host and x-forwarded-proto
+    const request = new NextRequest(
+      `http://127.0.0.1:3001/social-callback/tiktok?code=test-auth-code&state=${state}`,
+      {
+        headers: {
+          "x-forwarded-host": "aisam.ddns.net",
+          "x-forwarded-proto": "https",
+        },
+      },
+    );
+
+    const response = GET(request);
+
+    // Host aisam.ddns.net matches state host -> must NOT redirect, returns 200
+    expect(response.status).toBe(200);
+  });
 });
