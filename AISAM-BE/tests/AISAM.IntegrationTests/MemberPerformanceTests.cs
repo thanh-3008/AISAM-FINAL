@@ -30,7 +30,9 @@ public class MemberPerformanceTests
             new Content{WorkspaceId=w.Id,BrandId=unassigned.Id,PrimaryCreatorId=other.Id});
         await db.SaveChangesAsync();
         var service=new MemberPerformanceService(db,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)));
-        var report=await service.GetAsync(actor.Id,w.Id,from,to,memberId:other.Id);
+        var teamChoice=await service.GetAsync(actor.Id,w.Id,from,to,memberId:other.Id);
+        Assert.True(teamChoice.TeamSelectionRequired);Assert.Empty(teamChoice.Items);Assert.False(teamChoice.CanViewAllTeams);
+        var report=await service.GetAsync(actor.Id,w.Id,from,to,teamId:a.Id,memberId:other.Id);
         Assert.Equal(1,Assert.Single(report.Items).ContentsCreated);
         db.PermissionActorId=actor.Id;
         var dashboard=new AISAM.Services.Service.WorkspaceDashboardService(null!,null!,null!,null!,null!,new RbacV2AccessAdapter(db,new RbacV2AccessResolver(db)),db);
@@ -41,13 +43,13 @@ public class MemberPerformanceTests
         http.Items[AISAM.API.Utils.WorkspaceContextHelper.ActiveWorkspaceMembershipItemKey]=wm;
         http.Items[AISAM.API.Utils.WorkspaceContextHelper.ActiveWorkspaceItemKey]=w.Id;
         controller.ControllerContext=new Microsoft.AspNetCore.Mvc.ControllerContext{HttpContext=http};
-        var export=Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(await controller.Export(from,to,memberId:other.Id));
+        var export=Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(await controller.Export(from,to,teamId:a.Id,memberId:other.Id));
         using(var json=System.Text.Json.JsonDocument.Parse(export.FileContents))
             Assert.Equal(1,json.RootElement.GetProperty("items")[0].GetProperty("contentsCreated").GetInt32());
-        Assert.DoesNotContain(report.Teams,t=>t.Id==v.Id);
+        Assert.Single(report.Teams);Assert.Equal(a.Id,report.Teams[0].Id);
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to,teamId:v.Id))).StatusCode);
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to,teamId:c.Id,memberId:other.Id))).StatusCode);
-        Assert.Equal(1,Assert.Single((await service.GetAsync(actor.Id,w.Id,from,to,teamId:c.Id,memberId:actor.Id)).Items).ContentsCreated);
+        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to,teamId:c.Id,memberId:actor.Id))).StatusCode);
         Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,from,to))).StatusCode);
         wm.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;await db.SaveChangesAsync();
         Assert.Equal(4,Assert.Single((await service.GetAsync(actor.Id,w.Id,from,to,memberId:other.Id)).Items).ContentsCreated);
@@ -66,7 +68,7 @@ public class MemberPerformanceTests
             new WorkspaceMember{WorkspaceId=w.Id,UserId=creator.Id,Role=WorkspaceMemberRoleEnum.ContentCreator},
             new WorkspaceMember{WorkspaceId=w.Id,UserId=manager.Id,Role=WorkspaceMemberRoleEnum.Manager},
             new WorkspaceMember{WorkspaceId=w.Id,UserId=viewer.Id,Role=WorkspaceMemberRoleEnum.Viewer},
-            new TeamBrand{TeamId=team.Id,BrandId=brand.Id},new TeamMember{TeamId=team.Id,UserId=creator.Id},new TeamMember{TeamId=team.Id,UserId=manager.Id});
+            new TeamBrand{TeamId=team.Id,BrandId=brand.Id},new TeamMember{TeamId=team.Id,UserId=creator.Id},new TeamMember{TeamId=team.Id,UserId=manager.Id,Role=TeamRoleEnum.Manager});
         var c=new Content{WorkspaceId=w.Id,BrandId=brand.Id,PrimaryCreatorId=creator.Id,TeamId=team.Id,CreatedAt=start};
         var other=new Content{WorkspaceId=w.Id,BrandId=hidden.Id,PrimaryCreatorId=creator.Id,CreatedAt=start};
         var outsidePeriod=new Content{WorkspaceId=w.Id,BrandId=brand.Id,PrimaryCreatorId=creator.Id,CreatedAt=end};
@@ -80,27 +82,29 @@ public class MemberPerformanceTests
             new PerformanceReport{PostId=post.Id,ReportDate=start,Engagement=10,Impressions=100,Reach=70},
             new PerformanceReport{PostId=post.Id,ReportDate=start.AddDays(2),Engagement=30,Impressions=200,Reach=120},
             new PerformanceReport{PostId=post.Id,ReportDate=start.AddDays(3),RawData="{\"trackedClicks\":1}"},
-            new Approval{ContentId=c.Id,SubmittedAt=start,ApprovedAt=start.AddHours(2),Status=ContentStatusEnum.Approved},
-            new Approval{ContentId=c.Id,SubmittedAt=start.AddDays(1),CreatedAt=start.AddDays(1).AddHours(4),Status=ContentStatusEnum.Rejected},
+            new Approval{ContentId=c.Id,ApproverUserId=manager.Id,SubmittedAt=start,ApprovedAt=start.AddHours(2),Status=ContentStatusEnum.Approved},
+            new Approval{ContentId=c.Id,ApproverUserId=manager.Id,SubmittedAt=start.AddDays(1),CreatedAt=start.AddDays(1).AddHours(4),Status=ContentStatusEnum.Rejected},
             new Approval{ContentId=c.Id,CreatedAt=start,Status=ContentStatusEnum.Approved},
-            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledAt=start,ExecutedAt=start.AddMinutes(5),Status=ScheduleStatusEnum.Completed,AttemptCount=3},
-            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledAt=start,ExecutedAt=start.AddMinutes(6),Status=ScheduleStatusEnum.Completed},
-            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledAt=start,Status=ScheduleStatusEnum.Failed,AttemptCount=5},
-            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledAt=start,Status=ScheduleStatusEnum.Pending},
+            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledByUserId=creator.Id,ScheduledAt=start,ExecutedAt=start.AddMinutes(5),Status=ScheduleStatusEnum.Completed,AttemptCount=3},
+            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledByUserId=creator.Id,ScheduledAt=start,ExecutedAt=start.AddMinutes(6),Status=ScheduleStatusEnum.Completed},
+            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledByUserId=creator.Id,ScheduledAt=start,Status=ScheduleStatusEnum.Failed,AttemptCount=5},
+            new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledByUserId=creator.Id,ScheduledAt=start,Status=ScheduleStatusEnum.Pending},
             new ContentCalendar{WorkspaceId=w.Id,ContentId=c.Id,IntegrationId=channel.Id,ScheduledAt=start,Status=ScheduleStatusEnum.Failed,RepeatType=RepeatTypeEnum.Daily});
         await db.SaveChangesAsync();db.ChangeTracker.Clear();
         var service=new MemberPerformanceService(db,new AccessControlService(db));
-        var result=await service.GetAsync(creator.Id,w.Id,start,end);
-        var row=Assert.Single(result.Items);
-        Assert.Equal(1,row.ContentsCreated);Assert.Equal(1,row.CreatorPublishedPosts);Assert.Equal(0,row.PublisherPublishedPosts);
-        Assert.Equal(50m,row.ApprovalRate);Assert.Equal(3m,row.TurnaroundHours);Assert.Equal(50m,row.OnTimeRate);Assert.Equal(33.33m,row.FailedPublishRate);
-        Assert.Equal(30,row.Engagement);Assert.Equal(200,row.Impressions);Assert.Equal(120,row.Reach);Assert.Equal(15m,row.EngagementRate);Assert.Null(result.UnattributedContents);
-        var managerResult=await service.GetAsync(manager.Id,w.Id,start,end,memberId:creator.Id);
-        Assert.Equal(1,Assert.Single(managerResult.Items).ContentsCreated);
-        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(manager.Id,w.Id,start,end,brandId:hidden.Id))).StatusCode);
-        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(creator.Id,w.Id,start,end,memberId:owner.Id))).StatusCode);
-        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,start,end))).StatusCode);
+        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(creator.Id,w.Id,start,end))).StatusCode);
         var ownerResult=await service.GetAsync(owner.Id,w.Id,start,end);
+        var row=ownerResult.Items.Single(r=>r.MemberId==creator.Id);
+        Assert.Equal(2,row.ContentsCreated);Assert.Equal(1,row.CreatorPublishedPosts);Assert.Equal(0,row.PublisherPublishedPosts);
+        Assert.Equal(50m,row.ApprovalRate);Assert.Null(row.TurnaroundHours);Assert.Equal(50m,row.OnTimeRate);Assert.Equal(33.33m,row.FailedPublishRate);
+        Assert.Equal(30,row.Engagement);Assert.Equal(200,row.Impressions);Assert.Equal(120,row.Reach);Assert.Equal(15m,row.EngagementRate);
+        var managerResult=await service.GetAsync(manager.Id,w.Id,start,end,teamId:team.Id,memberId:creator.Id);
+        Assert.Equal(1,Assert.Single(managerResult.Items).ContentsCreated);
+        var reviewerRow=Assert.Single((await service.GetAsync(manager.Id,w.Id,start,end,teamId:team.Id,memberId:manager.Id)).Items);
+        Assert.Equal(2,reviewerRow.ReviewedSubmissions);Assert.Equal(3m,reviewerRow.TurnaroundHours);
+        Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(manager.Id,w.Id,start,end,brandId:hidden.Id))).StatusCode);
+        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(creator.Id,w.Id,start,end,memberId:owner.Id))).StatusCode);
+        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,start,end))).StatusCode);
         Assert.Equal(1,ownerResult.UnattributedContents);Assert.Equal(2,ownerResult.Items.Single(r=>r.MemberId==creator.Id).ContentsCreated);
         Assert.Equal(1,ownerResult.Items.Single(r=>r.MemberId==owner.Id).PublisherPublishedPosts);
         Assert.Null(ownerResult.Items.Single(r=>r.MemberId==owner.Id).EngagementRate);
@@ -108,7 +112,7 @@ public class MemberPerformanceTests
         await Assert.ThrowsAsync<ArgumentException>(()=>service.GetAsync(owner.Id,w.Id,end,start));
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(owner.Id,w.Id,start,end,teamId:Guid.NewGuid()))).StatusCode);
         var assignment=await db.TeamBrands.SingleAsync(tb=>tb.TeamId==team.Id && tb.BrandId==brand.Id);assignment.IsActive=false;await db.SaveChangesAsync();
-        Assert.Empty((await service.GetAsync(creator.Id,w.Id,start,end)).Items);
+        Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(creator.Id,w.Id,start,end))).StatusCode);
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(manager.Id,w.Id,start,end,brandId:brand.Id))).StatusCode);
     }
 }
