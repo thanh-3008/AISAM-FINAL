@@ -123,8 +123,16 @@ export function GET(request: NextRequest) {
 
       const fail = (text) => {
         card.classList.add('error');
-        title.textContent = 'TikTok connection failed';
-        message.textContent = text;
+        // Note: Expiry detection depends on backend string: "OAuth state is invalid or expired."
+        const isExpired = /expired/i.test(text || '');
+        if (isExpired) {
+          title.textContent = 'TikTok authorization expired';
+          message.textContent = 'The authorization session has expired. Please return to Social Accounts and try connecting again.';
+        } else {
+          title.textContent = 'TikTok connection failed';
+          message.textContent = text;
+        }
+        back.textContent = 'Back to Social Accounts';
         back.hidden = false;
       };
       back.addEventListener('click', () => location.replace('/social'));
@@ -177,6 +185,11 @@ export function GET(request: NextRequest) {
         const timeout = setTimeout(() => controller.abort(), 30000);
 
         try {
+          // Strip ?code&state from URL to prevent duplicate POSTs on page refresh / back-forward
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {}
+
           message.textContent = 'Exchanging the authorization code...';
           const callbackResponse = await fetch(apiUrl('/social-auth/tiktok/callback'), {
             method: 'POST', headers, body: JSON.stringify({ code, state }), signal: controller.signal
