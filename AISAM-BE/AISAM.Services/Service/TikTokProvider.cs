@@ -56,6 +56,9 @@ public sealed class TikTokProvider : IProviderService
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            _logger.LogError(
+                "TikTok token exchange failed (HTTP {StatusCode}) for redirect_uri={RedirectUri}: {ResponseBody}",
+                (int)response.StatusCode, redirectUri, content);
             throw new InvalidOperationException(GetErrorMessage(content, "TikTok token exchange failed."));
         }
 
@@ -481,22 +484,89 @@ public sealed class TikTokProvider : IProviderService
 
     private static string GetErrorMessage(string content, string fallback)
     {
+        if (string.IsNullOrWhiteSpace(content))
+            return fallback;
+
         try
         {
             using var document = JsonDocument.Parse(content);
             var root = document.RootElement;
+
+            // Extract log_id for diagnostics (append to message if present)
+            string? logId = null;
+            if (root.TryGetProperty("log_id", out var logIdProp) &&
+                logIdProp.ValueKind == JsonValueKind.String)
+                logId = logIdProp.GetString();
+
+            string? extracted = null;
+
+            // 1. OAuth standard: { "error_description": "..." }
             if (root.TryGetProperty("error_description", out var description) &&
                 description.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(description.GetString()))
-                return description.GetString()!;
-            if (root.TryGetProperty("error", out var error))
+            {
+                extracted = description.GetString()!;
+            }
+            // 2. TikTok nested data description: { "data": { "description": "...", "error_code": 10007 } }
+            // Checked before top-level "message" because TikTok envelopes often use { "message": "error", "data": { "description": "..." } }
+            else if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object &&
+                     data.TryGetProperty("description", out var dataDesc) &&
+                     dataDesc.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(dataDesc.GetString()))
+            {
+                extracted = dataDesc.GetString()!;
+            }
+            // 3. OAuth standard: { "error": "invalid_grant" } or { "error": { "message": "...", "code": "..." } }
+            else if (root.TryGetProperty("error", out var error))
             {
                 if (error.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(error.GetString()))
-                    return error.GetString()!;
-                if (error.ValueKind == JsonValueKind.Object && error.TryGetProperty("message", out var message) &&
-                    message.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(message.GetString()))
-                    return message.GetString()!;
+                {
+                    extracted = error.GetString()!;
+                }
+                else if (error.ValueKind == JsonValueKind.Object)
+                {
+                    if (error.TryGetProperty("message", out var errMsg) &&
+                        errMsg.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(errMsg.GetString()))
+                        extracted = errMsg.GetString()!;
+                    else if (error.TryGetProperty("code", out var errCode) &&
+                             errCode.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(errCode.GetString()))
+                        extracted = errCode.GetString()!;
+
+                    // Capture log_id from nested error object if not at root
+                    if (logId == null && error.TryGetProperty("log_id", out var nestedLogId) &&
+                        nestedLogId.ValueKind == JsonValueKind.String)
+                        logId = nestedLogId.GetString();
+                }
             }
-            return fallback;
+            // 4. TikTok API v2 structured: { "code": "...", "message": "..." } (skip generic "error" / "fail" if other info is available)
+            else if (root.TryGetProperty("message", out var topMessage) &&
+                     topMessage.ValueKind == JsonValueKind.String &&
+                     !string.IsNullOrWhiteSpace(topMessage.GetString()) &&
+                     !string.Equals(topMessage.GetString(), "error", StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(topMessage.GetString(), "fail", StringComparison.OrdinalIgnoreCase))
+            {
+                extracted = topMessage.GetString()!;
+            }
+            else if (root.TryGetProperty("data", out var fallbackData) && fallbackData.ValueKind == JsonValueKind.Object &&
+                     fallbackData.TryGetProperty("error_code", out var dataErrCode))
+            {
+                extracted = $"TikTok error_code: {dataErrCode}";
+            }
+            else if (root.TryGetProperty("code", out var topCode) &&
+                     topCode.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(topCode.GetString()))
+            {
+                extracted = topCode.GetString()!;
+            }
+            else if (root.TryGetProperty("message", out var genericMessage) &&
+                     genericMessage.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(genericMessage.GetString()))
+            {
+                extracted = genericMessage.GetString()!;
+            }
+
+            if (string.IsNullOrWhiteSpace(extracted))
+                return fallback;
+
+            return !string.IsNullOrWhiteSpace(logId)
+                ? $"{extracted} (log_id: {logId})"
+                : extracted;
         }
         catch (JsonException)
         {

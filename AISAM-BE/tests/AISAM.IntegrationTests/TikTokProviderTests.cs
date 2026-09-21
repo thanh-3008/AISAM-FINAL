@@ -96,6 +96,83 @@ public class TikTokProviderTests
     }
 
     [Fact]
+    public async Task ExchangeCodeAsync_ExtractsRedirectUriMismatchWithLogId()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.BadRequest, """
+        {"error":"invalid_request","error_description":"Redirect_uri is not matched with the uri when requesting code.","log_id":"202206221854370101130062072500FFA2"}
+        """);
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.ExchangeCodeAsync("test-code", "https://aisam.ddns.net/social-callback/tiktok"));
+
+        Assert.Contains("Redirect_uri is not matched", error.Message);
+        Assert.Contains("log_id: 202206221854370101", error.Message);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_ExtractsTopLevelCodeAndMessage()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.BadRequest, """
+        {"code":"invalid_grant","message":"The authorization code has expired.","log_id":"20220622185437"}
+        """);
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.ExchangeCodeAsync("test-code", "https://client/social-callback/tiktok"));
+
+        Assert.Contains("The authorization code has expired.", error.Message);
+        Assert.Contains("log_id:", error.Message);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_ExtractsNestedDataDescription()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.BadRequest, """
+        {"message":"error","data":{"description":"Invalid redirect URI","error_code":10007}}
+        """);
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.ExchangeCodeAsync("test-code", "https://client/social-callback/tiktok"));
+
+        // data.description takes precedence over generic envelope message="error"
+        Assert.Equal("Invalid redirect URI", error.Message);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_ExtractsNestedErrorCode()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.BadRequest, """
+        {"error":{"code":"access_token_invalid","log_id":"log123"}}
+        """);
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.ExchangeCodeAsync("test-code", "https://client/social-callback/tiktok"));
+
+        Assert.Contains("access_token_invalid", error.Message);
+        Assert.Contains("log_id: log123", error.Message);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_FallsBackOnEmptyResponseBody()
+    {
+        var handler = new RecordingHandler();
+        handler.EnqueueJson(HttpStatusCode.InternalServerError, "");
+        var provider = CreateProvider(handler, CreateSettings());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.ExchangeCodeAsync("test-code", "https://client/social-callback/tiktok"));
+
+        Assert.Equal("TikTok token exchange failed.", error.Message);
+    }
+
+    [Fact]
     public async Task GetTargetsAsync_ReturnsTikTokAccountAsLinkableTarget()
     {
         var handler = new RecordingHandler();
