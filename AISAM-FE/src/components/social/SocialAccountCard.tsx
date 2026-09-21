@@ -15,6 +15,7 @@ import {
   getAccountHandle,
   getAccountStatus,
 } from "./socialUtils";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 interface SocialAccountCardProps {
   account: SocialAccount;
@@ -161,16 +162,19 @@ export default function SocialAccountCard({
           </div>
         )}
 
-        {canManage && (
         <div className="flex items-center gap-2 pt-3 border-t border-outline-variant/10">
-          <button
+          <PermissionButton
+            allowed={canManage}
+            deniedMessage="Bạn không có quyền quản lý các đích kết nối của tài khoản này."
             onClick={() => onManageTargets(account)}
             className="flex-1 px-3 py-2.5 bg-primary/10 hover:bg-primary/20 rounded-xl text-[11px] font-semibold text-primary transition-all flex items-center justify-center gap-1.5"
           >
             <span className="material-symbols-outlined text-[14px]">link</span>
             Manage
-          </button>
-          <button
+          </PermissionButton>
+          <PermissionButton
+            allowed={canManage}
+            deniedMessage="Bạn không có quyền ngắt kết nối tài khoản này."
             onClick={() => onDelete(account)}
             disabled={isLoading}
             className="px-4 py-2.5 border border-outline-variant/30 hover:border-danger-red/30 hover:bg-danger-red/5 rounded-xl text-[11px] font-semibold text-outline hover:text-danger-red transition-all disabled:opacity-50"
@@ -180,9 +184,8 @@ export default function SocialAccountCard({
             ) : (
               <span className="material-symbols-outlined text-[14px]">delete</span>
             )}
-          </button>
+          </PermissionButton>
         </div>
-        )}
       </div>
     </div>
   );

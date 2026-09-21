@@ -18,6 +18,7 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { usePublishPermission } from "@/hooks/usePublishPermission";
 import { useResourcePermissions } from "@/hooks/useResourcePermissions";
 import { Kind, Permission, checkPermissions } from "@/services/permissionService";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 type ViewMode = "grid" | "list";
 type SortKey = "newest" | "oldest" | "title-asc" | "title-desc" | "brand-asc" | "product-asc" | "status";
@@ -422,7 +423,7 @@ export default function ContentPage() {
               </button>
             </div>
             <div className="relative">
-              <button disabled={!createChecks.some((_, index) => createAllowed(index))} ref={createBtnRef} onClick={() => {
+              <PermissionButton allowed={createChecks.some((_, index) => createAllowed(index))} deniedMessage="Vai trò hiện tại không có quyền tạo nội dung trong Team hoặc Brand này." ref={createBtnRef} onClick={() => {
                   if (!showCreateMenu && createBtnRef.current) {
                     const rect = createBtnRef.current.getBoundingClientRect();
                     setCreateMenuStyle({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
@@ -433,7 +434,7 @@ export default function ContentPage() {
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 Create New Content
                 <span className={`material-symbols-outlined text-[14px] transition-transform ${showCreateMenu ? "rotate-180" : ""}`}>expand_more</span>
-              </button>
+              </PermissionButton>
             </div>
           </div>
         </div>
@@ -1108,53 +1109,56 @@ function TableMenu({ item, onClose, onAction, canPublish, canManageSchedules }: 
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">open_in_new</span>
           View Details
         </button>
-        <button
-          disabled={!allowed(0)}
+        <PermissionButton
+          allowed={allowed(0)}
+          deniedMessage={getEditDisabledReason()}
           onClick={(e) => { e.stopPropagation(); onAction("Edit", item); }}
           title={getEditDisabledReason()}
           className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
         >
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">edit</span>
           Edit
-        </button>
+        </PermissionButton>
         <button onClick={(e) => { e.stopPropagation(); onAction("Duplicate", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
           <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">content_copy</span>
           Duplicate
         </button>
         <div className="h-px bg-outline-variant/10 mx-3" />
         {(item.status === "Draft" || item.status === "Rejected") && (
-          <button
-            disabled={!allowed(0)}
+          <PermissionButton
+            allowed={allowed(0)}
+            deniedMessage={getSubmitDisabledReason()}
             onClick={(e) => { e.stopPropagation(); onAction("Submit for Approval", item); }}
             title={getSubmitDisabledReason()}
             className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
             <span className="material-symbols-outlined text-[14px] text-amber-500 group-hover:text-amber-600">send</span>
             Submit for Approval
-          </button>
+          </PermissionButton>
         )}
-        {item.status === "Approved" && (publishAllowed || canManageSchedules) && (
+        {item.status === "Approved" && (
           <>
-            {publishAllowed && <button onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+            <PermissionButton allowed={publishAllowed} deniedMessage="Vai trò hiện tại không có quyền đăng nội dung lên kênh này." onClick={(e) => { e.stopPropagation(); onAction("Post Now", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
               <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">send</span>
               Post Now
-            </button>}
-            {canManageSchedules && <button onClick={(e) => { e.stopPropagation(); onAction("Schedule", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
+            </PermissionButton>
+            <PermissionButton allowed={canManageSchedules} deniedMessage="Vai trò hiện tại không có quyền lên lịch đăng nội dung này." onClick={(e) => { e.stopPropagation(); onAction("Schedule", item); }} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-on-surface group">
               <span className="material-symbols-outlined text-[14px] text-outline/50 group-hover:text-primary">calendar_month</span>
               Schedule
-            </button>}
+            </PermissionButton>
           </>
         )}
         <div className="h-px bg-outline-variant/10 mx-3" />
-        <button
-          disabled={!allowed(1)}
+        <PermissionButton
+          allowed={allowed(1)}
+          deniedMessage={getDeleteDisabledReason()}
           onClick={(e) => { e.stopPropagation(); onAction("delete", item); }}
           title={getDeleteDisabledReason()}
           className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container transition-colors text-left text-label-sm text-danger-red group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
         >
           <span className="material-symbols-outlined text-[14px]">delete</span>
           Delete
-        </button>
+        </PermissionButton>
       </div>
     </>
   );

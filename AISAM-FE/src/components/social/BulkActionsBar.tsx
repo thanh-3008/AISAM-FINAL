@@ -1,10 +1,13 @@
 "use client";
 
+import PermissionButton from "@/components/ui/PermissionButton";
+
 interface BulkActionsBarProps {
   selectedCount: number;
   onClearSelection: () => void;
   onBulkDelete: () => void;
   isLoading: boolean;
+  canManage: boolean;
 }
 
 export default function BulkActionsBar({
@@ -12,6 +15,7 @@ export default function BulkActionsBar({
   onClearSelection,
   onBulkDelete,
   isLoading,
+  canManage,
 }: BulkActionsBarProps) {
   if (selectedCount === 0) return null;
 
@@ -31,7 +35,9 @@ export default function BulkActionsBar({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <PermissionButton
+            allowed={canManage}
+            deniedMessage="Bạn không có quyền ngắt kết nối các tài khoản đã chọn."
             onClick={onBulkDelete}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-4 py-2 bg-danger-red/10 hover:bg-danger-red/20 text-danger-red rounded-xl text-[11px] font-semibold transition-all disabled:opacity-50"
@@ -42,7 +48,7 @@ export default function BulkActionsBar({
               <span className="material-symbols-outlined text-[14px]">delete</span>
             )}
             Delete Selected
-          </button>
+          </PermissionButton>
           <button
             onClick={onClearSelection}
             className="px-4 py-2 border border-outline-variant/30 hover:bg-surface-container rounded-xl text-[11px] font-semibold text-outline hover:text-on-surface transition-all"

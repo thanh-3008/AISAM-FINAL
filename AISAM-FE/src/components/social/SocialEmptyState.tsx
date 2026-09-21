@@ -1,13 +1,15 @@
 "use client";
 
 import { PlatformIcon } from "@/lib/contentConstants";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 interface SocialEmptyStateProps {
   hasFilters: boolean;
   onConnect: () => void;
+  canManage: boolean;
 }
 
-export default function SocialEmptyState({ hasFilters, onConnect }: SocialEmptyStateProps) {
+export default function SocialEmptyState({ hasFilters, onConnect, canManage }: SocialEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center gap-6 animate-fade-up">
       <div className="relative">
@@ -56,13 +58,15 @@ export default function SocialEmptyState({ hasFilters, onConnect }: SocialEmptyS
       )}
 
       {!hasFilters && (
-        <button
+        <PermissionButton
+          allowed={canManage}
+          deniedMessage="Chỉ Owner hoặc Workspace Manager mới có quyền kết nối tài khoản mạng xã hội."
           onClick={onConnect}
           className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-xl font-semibold text-label-md hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97] transition-all"
         >
           <span className="material-symbols-outlined text-[18px]">add_link</span>
           Connect Your First Account
-        </button>
+        </PermissionButton>
       )}
     </div>
   );

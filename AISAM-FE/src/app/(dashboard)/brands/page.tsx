@@ -13,6 +13,7 @@ import { clearActiveProfile } from "@/stores/profile-store";
 import CreateBrandModal from "@/components/brands/CreateBrandModal";
 import EditBrandModal from "@/components/brands/EditBrandModal";
 import { useToast } from "@/contexts/ToastContext";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 interface Brand {
   id: string;
@@ -202,8 +203,7 @@ export default function BrandsPage() {
               </p>
             </div>
           </div>
-          {canEdit && (
-            <button onClick={() => {
+          <PermissionButton allowed={canEdit} deniedMessage="Vai trò hiện tại không có quyền tạo Brand mới." onClick={() => {
               if (!activeWorkspace) {
                 setError("Please select a Workspace first (go to Overview).");
                 return;
@@ -213,8 +213,7 @@ export default function BrandsPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all shrink-0">
               <span className="material-symbols-outlined text-[18px]">add</span>
               New Brand
-            </button>
-          )}
+            </PermissionButton>
         </motion.div>
 
         {/* ─── Error ─── */}
@@ -406,8 +405,7 @@ export default function BrandsPage() {
               <h2 className="text-headline-md text-on-surface font-bold mb-2">No brands yet</h2>
               <p className="text-body-md text-on-surface-variant">Create your first brand to start managing products and campaigns</p>
             </div>
-            {canEdit && (
-              <button onClick={() => {
+            <PermissionButton allowed={canEdit} deniedMessage="Vai trò hiện tại không có quyền tạo Brand mới." onClick={() => {
                 if (!activeWorkspace) {
                   setError("Please select a Workspace first (go to Overview).");
                   return;
@@ -416,8 +414,7 @@ export default function BrandsPage() {
               }} className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-label-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all">
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 Create Your First Brand
-              </button>
-            )}
+              </PermissionButton>
           </motion.div>
         ) : (
           <AnimatePresence mode="popLayout">
@@ -475,20 +472,18 @@ export default function BrandsPage() {
                             )}
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            {canEdit && (
-                              <>
-                                <button onClick={(e) => { e.stopPropagation(); setEditingBrand(brand); }}
+                            <>
+                                <PermissionButton allowed={canEdit} deniedMessage="Bạn không có quyền chỉnh sửa Brand này." onClick={(e) => { e.stopPropagation(); setEditingBrand(brand); }}
                                   className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-primary transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                   title="Edit">
                                   <span className="material-symbols-outlined text-[15px]">edit</span>
-                                </button>
-                                <button onClick={(e) => { e.stopPropagation(); setDeletingBrand(brand); }}
+                                </PermissionButton>
+                                <PermissionButton allowed={canEdit} deniedMessage="Bạn không có quyền xóa Brand này." onClick={(e) => { e.stopPropagation(); setDeletingBrand(brand); }}
                                   className="w-8 h-8 rounded-xl flex items-center justify-center text-outline/40 hover:bg-surface-container hover:text-danger-red transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30"
                                   title="Delete">
                                   <span className="material-symbols-outlined text-[15px]">delete</span>
-                                </button>
+                                </PermissionButton>
                               </>
-                            )}
                           </div>
                         </div>
 

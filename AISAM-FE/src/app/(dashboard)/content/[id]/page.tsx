@@ -17,6 +17,7 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import RichTextPreview from "@/components/content/RichTextPreview";
 import RichTextEditor from "@/components/content/RichTextEditor";
 import MediaComposer from "@/components/content/MediaComposer";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 interface FormState {
   title: string;
@@ -313,6 +314,18 @@ export default function ContentDetailPage() {
   }
 
   if (!item) return null;
+  const editDeniedMessage = !allowed.isReady
+    ? "Đang kiểm tra quyền truy cập. Vui lòng thử lại."
+    : item.status === "Awaiting Approval"
+      ? "Nội dung đang chờ duyệt nên chưa thể chỉnh sửa."
+      : item.status === "Published" || item.status === "Scheduled"
+        ? "Nội dung đã lên lịch hoặc xuất bản nên không thể chỉnh sửa trực tiếp."
+        : "Bạn không có quyền chỉnh sửa bài viết này.";
+  const deleteDeniedMessage = !allowed.isReady
+    ? "Đang kiểm tra quyền truy cập. Vui lòng thử lại."
+    : item.status === "Published" || item.status === "Scheduled"
+      ? "Không thể xóa nội dung đã lên lịch hoặc xuất bản."
+      : "Bạn không có quyền xóa bài viết này.";
 
   const typeGradient = getTypeStyle(item.type);
   const typeIcon = getTypeIcon(item.type);
@@ -381,7 +394,9 @@ export default function ContentDetailPage() {
             {!editing ? (
               <>
                 {item.status === "Approved" && (
-                  <button
+                  <PermissionButton
+                    allowed={allowed(2)}
+                    deniedMessage="Bạn không có quyền thu hồi trạng thái duyệt của nội dung này."
                     disabled={saving}
                     onClick={handleWithdrawAndEdit}
                     className="px-4 py-2 rounded-xl bg-amber-500/15 text-amber-800 border border-amber-300 hover:bg-amber-500/25 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5"
@@ -389,24 +404,24 @@ export default function ContentDetailPage() {
                   >
                     <span className="material-symbols-outlined text-[16px]">edit_note</span>
                     Revoke approval to edit
-                  </button>
+                  </PermissionButton>
                 )}
-                {item.status === "Approved" && (canPublish || canManageSchedules) && (
+                {item.status === "Approved" && (
                   <>
-                    {canPublish && <button disabled={mediaDirty} onClick={() => setShowPostNow(true)}
+                    <PermissionButton allowed={canPublish} deniedMessage="Vai trò hiện tại không có quyền đăng nội dung lên kênh này." disabled={mediaDirty} onClick={() => setShowPostNow(true)}
                       className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-semibold hover:shadow-lg active:scale-[0.97] transition-all flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">send</span>
                       Post Now
-                    </button>}
-                    {canManageSchedules && <button disabled={mediaDirty} onClick={() => router.push(`/calendar?contentId=${item.id}`)}
+                    </PermissionButton>
+                    <PermissionButton allowed={canManageSchedules} deniedMessage="Vai trò hiện tại không có quyền lên lịch đăng nội dung này." disabled={mediaDirty} onClick={() => router.push(`/calendar?contentId=${item.id}`)}
                       className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">calendar_month</span>
                       Schedule
-                    </button>}
+                    </PermissionButton>
                   </>
                 )}
                 {(item.status === "Draft" || item.status === "Rejected") && (
-                  <button onClick={handleSubmit} disabled={mediaDirty || isSubmitting || !allowed(0)}
+                  <PermissionButton allowed={allowed(0)} deniedMessage="Bạn không có quyền gửi duyệt nội dung này." onClick={handleSubmit} disabled={mediaDirty || isSubmitting}
                     className="px-4 py-2 rounded-xl bg-amber-500 text-white text-label-sm font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] disabled:opacity-60 flex items-center gap-1.5">
                     {isSubmitting ? (
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -414,28 +429,30 @@ export default function ContentDetailPage() {
                       <span className="material-symbols-outlined text-[16px]">send</span>
                     )}
                     Submit for Approval
-                  </button>
+                  </PermissionButton>
                 )}
                 {item.status !== "Approved" && (
-                  <button
-                    disabled={!allowed(0)}
+                  <PermissionButton
+                    allowed={allowed(0)}
+                    deniedMessage={editDeniedMessage}
                     onClick={() => setEditing(true)}
                     title={!allowed(0) ? (!allowed.isReady ? "Đang kiểm tra quyền..." : (item.status === "Awaiting Approval" ? "Nội dung đang chờ duyệt, không thể chỉnh sửa." : (item.status === "Published" || item.status === "Scheduled" ? "Nội dung đã lên lịch hoặc xuất bản, không thể chỉnh sửa trực tiếp." : "Bạn không có quyền chỉnh sửa bài viết này."))) : undefined}
                     className="px-4 py-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                   >
                     <span className="material-symbols-outlined text-[16px]">edit</span>
                     Edit
-                  </button>
+                  </PermissionButton>
                 )}
-                <button
-                  disabled={!allowed(1)}
+                <PermissionButton
+                  allowed={allowed(1)}
+                  deniedMessage={deleteDeniedMessage}
                   onClick={() => setShowDelete(true)}
                   title={!allowed(1) ? (!allowed.isReady ? "Đang kiểm tra quyền..." : (item.status === "Published" || item.status === "Scheduled" ? "Không thể xóa nội dung đã lên lịch hoặc xuất bản." : "Bạn không có quyền xóa bài viết này.")) : undefined}
                   className="px-4 py-2 rounded-xl border border-danger-red/20 text-danger-red hover:bg-danger-red/5 transition-all active:scale-[0.97] text-label-sm font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                   Delete
-                </button>
+                </PermissionButton>
               </>
             ) : (
               <>

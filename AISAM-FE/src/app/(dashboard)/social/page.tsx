@@ -22,6 +22,7 @@ import BulkActionsBar from "@/components/social/BulkActionsBar";
 import ConnectAccountModal from "@/components/social/ConnectAccountModal";
 import DisconnectConfirmModal from "@/components/social/DisconnectConfirmModal";
 import ManageTargetsModal from "@/components/social/ManageTargetsModal";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 export default function SocialAccountsPage() {
   const { activeWorkspace } = useWorkspaces();
@@ -272,15 +273,16 @@ export default function SocialAccountsPage() {
                 <p className="text-[11px] text-outline">{accounts.length} accounts connected</p>
               </div>
             </div>
-            <button
+            <PermissionButton
+              allowed={canManage}
+              deniedMessage="Chỉ Owner hoặc Workspace Manager mới có quyền kết nối tài khoản mạng xã hội."
               onClick={() => setShowConnectModal(true)}
-              disabled={!canManage}
               className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-sm font-bold flex items-center gap-1.5 shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               title={!canManage ? "Only Owner can manage account credentials; Brand channel access is managed in Brand Access" : ""}
             >
               <span className="material-symbols-outlined text-[16px]">add_link</span>
               Connect Account
-            </button>
+            </PermissionButton>
           </div>
 
           {/* Stats */}
@@ -306,6 +308,7 @@ export default function SocialAccountsPage() {
             onClearSelection={handleClearSelection}
             onBulkDelete={handleBulkDelete}
             isLoading={actionLoading === "bulk"}
+            canManage={canManage}
           />
 
           {/* Content */}
@@ -336,6 +339,7 @@ export default function SocialAccountsPage() {
             <SocialEmptyState
               hasFilters={hasFilters}
               onConnect={() => setShowConnectModal(true)}
+              canManage={canManage}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

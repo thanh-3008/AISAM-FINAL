@@ -14,6 +14,7 @@ import ProductModal, { type Product } from "@/components/brands/ProductModal";
 import { fetchCampaigns, type Campaign } from "@/services/campaignService";
 import { useToast } from "@/contexts/ToastContext";
 import BrandTeamAccess from "@/components/brands/BrandTeamAccess";
+import PermissionButton from "@/components/ui/PermissionButton";
 
 interface Brand {
   id: string;
@@ -369,10 +370,10 @@ export default function BrandDetailPage() {
                   <span className="material-symbols-outlined text-[18px]">link</span>
                   Manage Connections
                 </button>
-                <button disabled={!canManage} onClick={() => setActiveTab("settings")} className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all flex items-center gap-2">
+                <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền chỉnh sửa Brand này." onClick={() => setActiveTab("settings")} className="px-4 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">edit</span>
                   Edit Brand
-                </button>
+                </PermissionButton>
                 <button className="p-2 rounded-xl border border-outline-variant/20 text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
                   <span className="material-symbols-outlined text-[20px]">more_vert</span>
                 </button>
@@ -456,11 +457,11 @@ export default function BrandDetailPage() {
                           <span className="material-symbols-outlined">filter_list</span>
                         </button>
                     </div>
-                    <button disabled={!canManage} onClick={() => setShowAddModal(true)}
+                    <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền thêm sản phẩm vào Brand này." onClick={() => setShowAddModal(true)}
                       className="bg-primary text-on-primary px-5 py-2 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all flex items-center gap-2 shadow-md shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       <span className="material-symbols-outlined text-[20px]">add</span>
                       Add New Product
-                    </button>
+                    </PermissionButton>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -511,12 +512,12 @@ export default function BrandDetailPage() {
                                 <button onClick={() => setViewingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" title="View details">
                                   <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-primary">visibility</span>
                                 </button>
-                                <button disabled={!canManage} onClick={() => setEditingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" title="Edit product">
+                                <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền chỉnh sửa sản phẩm này." onClick={() => setEditingProduct(product)} className="p-1.5 rounded-full hover:bg-surface-container transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" title="Edit product">
                                   <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-primary">edit</span>
-                                </button>
-                                <button disabled={!canManage} onClick={() => setDeletingProduct(product)} className="p-1.5 rounded-full hover:bg-error-container/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30" title="Delete product">
+                                </PermissionButton>
+                                <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền xóa sản phẩm này." onClick={() => setDeletingProduct(product)} className="p-1.5 rounded-full hover:bg-error-container/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30" title="Delete product">
                                   <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-danger-red">delete</span>
-                                </button>
+                                </PermissionButton>
                               </div>
                             </div>
                           </div>
@@ -538,11 +539,11 @@ export default function BrandDetailPage() {
                     </p>
                   </div>
                   {!productSearch && (
-                    <button disabled={!canManage} onClick={() => setShowAddModal(true)}
+                    <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền thêm sản phẩm vào Brand này." onClick={() => setShowAddModal(true)}
                       className="bg-primary text-on-primary px-5 py-2.5 rounded-xl text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-md flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       <span className="material-symbols-outlined text-[18px]">add</span>
                       Add Product
-                    </button>
+                    </PermissionButton>
                   )}
                 </motion.div>
               )
@@ -660,12 +661,12 @@ export default function BrandDetailPage() {
                   <div className="flex justify-end gap-3 pt-2">
                     <button onClick={() => { if (brand) { setForm({ name: brand.name, description: brand.description || "", logoUrl: brand.logoUrl || "", slogan: brand.slogan || "", usp: brand.usp || "", targetAudience: brand.targetAudience || "" }); } setError(null); }}
                       className="px-5 py-2 rounded-xl border border-outline-variant/20 text-label-sm font-semibold text-outline hover:text-on-surface hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Reset</button>
-                    <button onClick={handleSave} disabled={saving || !canManage}
+                    <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền lưu thay đổi của Brand này." onClick={handleSave} disabled={saving}
                       className="px-5 py-2 rounded-xl bg-primary text-on-primary text-label-sm font-bold hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2 shadow-lg shadow-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       {saving ? (
                         <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> Saving...</>
                       ) : "Save Changes"}
-                    </button>
+                    </PermissionButton>
                   </div>
                 </div>
 
@@ -679,11 +680,11 @@ export default function BrandDetailPage() {
                       <p className="text-body-sm text-on-surface-variant">Irreversible actions for this brand</p>
                     </div>
                   </div>
-                  <button disabled={!canManage} onClick={() => setShowDeleteDialog(true)}
+                  <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền xóa Brand này." onClick={() => setShowDeleteDialog(true)}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-danger-red/10 text-danger-red rounded-xl text-label-sm font-semibold hover:bg-danger-red/20 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/30 transition-all">
                     <span className="material-symbols-outlined text-[16px]">delete</span>
                     Delete Brand
-                  </button>
+                  </PermissionButton>
                 </div>
               </div>
             )}
@@ -819,10 +820,10 @@ export default function BrandDetailPage() {
               </div>
             </div>
             <div className="bg-surface-container-lowest px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl shrink-0 border-t border-outline-variant/20">
-              <button disabled={!canManage} onClick={() => { setViewingProduct(null); setEditingProduct(viewingProduct); }} className="px-6 py-2 text-label-md font-bold text-on-surface-variant hover:bg-surface-container transition-colors rounded-xl active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-1.5">
+              <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền chỉnh sửa sản phẩm này." onClick={() => { setViewingProduct(null); setEditingProduct(viewingProduct); }} className="px-6 py-2 text-label-md font-bold text-on-surface-variant hover:bg-surface-container transition-colors rounded-xl active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[16px]">edit</span>
                 Edit
-              </button>
+              </PermissionButton>
               <button onClick={() => setViewingProduct(null)} className="px-6 py-2 bg-primary text-on-primary text-label-md font-bold rounded-xl shadow-md hover:opacity-90 transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                 Close
               </button>
@@ -858,7 +859,7 @@ export default function BrandDetailPage() {
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setDeletingProduct(null)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Cancel</button>
-              <button disabled={!canManage} onClick={handleDeleteProduct} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</button>
+              <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền xóa sản phẩm này." onClick={handleDeleteProduct} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</PermissionButton>
             </div>
             </motion.div>
           </motion.div>
@@ -891,7 +892,7 @@ export default function BrandDetailPage() {
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowDeleteDialog(false)} className="px-5 py-2 rounded-xl border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline">Cancel</button>
-              <button disabled={!canManage} onClick={handleDelete} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</button>
+              <PermissionButton allowed={canManage} deniedMessage="Bạn không có quyền xóa Brand này." onClick={handleDelete} className="px-5 py-2 rounded-xl bg-danger-red text-white text-label-md hover:opacity-90 active:scale-[0.97] transition-all shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-red/50">Delete</PermissionButton>
             </div>
             </motion.div>
           </motion.div>
