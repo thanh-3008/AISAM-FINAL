@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { resolveServerOrigin } from "@/lib/originResolver";
 
 function asJavaScriptString(value: string | null): string {
   return JSON.stringify(value ?? "").replaceAll("<", "\\u003c");
@@ -7,6 +8,11 @@ function asJavaScriptString(value: string | null): string {
 function getBackendApiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
   return configured ? configured.replace(/\/$/, "") : "/backend-api";
+}
+
+function getFallbackApiBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_FALLBACK_API_URL?.trim();
+  return configured ? configured.replace(/\/$/, "") : "";
 }
 
 function canUseLocalCallback(request: NextRequest): boolean {
@@ -35,10 +41,24 @@ export function GET(request: NextRequest) {
     }
   }
 
+  const targetOrigin = resolveServerOrigin(request);
+  if (targetOrigin && request.nextUrl.origin !== targetOrigin) {
+    const target = new URL(`${targetOrigin}/social-callback/tiktok`);
+    target.search = request.nextUrl.search;
+    return NextResponse.redirect(target, {
+      status: 302,
+      headers: {
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+      },
+    });
+  }
+
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const oauthError = request.nextUrl.searchParams.get("error_description") || request.nextUrl.searchParams.get("error");
   const backendApiBaseUrl = getBackendApiBaseUrl();
+  const fallbackApiBaseUrl = getFallbackApiBaseUrl();
 
   const html = `<!doctype html>
 <html lang="en">
@@ -72,6 +92,7 @@ export function GET(request: NextRequest) {
       const state = ${asJavaScriptString(state)};
       const oauthError = ${asJavaScriptString(oauthError)};
       const backendApiBaseUrl = ${asJavaScriptString(backendApiBaseUrl)};
+      const fallbackApiBaseUrl = ${asJavaScriptString(fallbackApiBaseUrl)};
       const card = document.getElementById('card');
       const title = document.getElementById('title');
       const message = document.getElementById('message');
@@ -89,7 +110,24 @@ export function GET(request: NextRequest) {
         try { return JSON.parse(localStorage.getItem(key) || 'null'); }
         catch { return null; }
       };
-      const apiUrl = (path) => backendApiBaseUrl.replace(/\\/$/, '') + path;
+
+      const getApiBaseUrl = () => {
+        try {
+          const saved = sessionStorage.getItem('aisam_active_api_url_' + window.location.hostname) ||
+                        sessionStorage.getItem('aisam_active_api_url');
+          if (saved) return saved.replace(/\\/$/, '');
+        } catch {}
+
+        const host = window.location.hostname.toLowerCase();
+        if (host === 'aisam.ddns.net' || host.endsWith('.ddns.net')) {
+          if (fallbackApiBaseUrl) return fallbackApiBaseUrl.replace(/\\/$/, '');
+          return window.location.origin + '/api';
+        }
+
+        return backendApiBaseUrl.replace(/\\/$/, '');
+      };
+
+      const apiUrl = (path) => getApiBaseUrl() + path;
 
       const run = async () => {
         if (oauthError || !code || !state) {
@@ -101,7 +139,7 @@ export function GET(request: NextRequest) {
         const workspace = readJson('aisam_active_workspace');
         const profile = readJson('aisam_active_profile');
         if (!token || !workspace?.id) {
-          fail('AISAM login or workspace session is missing. Return to localhost, sign in, select a workspace, and connect TikTok again.');
+          fail('AISAM login or workspace session is missing. Sign in, select a workspace, and connect TikTok again.');
           return;
         }
 

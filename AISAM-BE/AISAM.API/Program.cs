@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using AISAM.API.Filters;
 using AISAM.API.Infrastructure;
 using AISAM.API.Middleware;
@@ -308,7 +309,10 @@ builder.Services.AddScoped<AISAM.API.Middleware.ResourcePermissionFilter>();
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(o=>o.Filters.AddService<AISAM.API.Middleware.ResourcePermissionFilter>());
 builder.Services.AddScoped<ISocialService, SocialService>();
 builder.Services.AddSingleton<IOriginResolver, OriginResolver>();
-builder.Services.AddScoped<IOAuthStateStore>(sp => new SignedOAuthStateStore(jwtSecretKey, sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
+builder.Services.AddScoped<IOAuthStateStore>(sp => new SignedOAuthStateStore(
+    jwtSecretKey,
+    sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+    sp.GetService<ILogger<SignedOAuthStateStore>>()));
 builder.Services.AddScoped<ISocialTokenProtector, SocialTokenProtector>();
 builder.Services.ConfigureHttpClientDefaults(http =>
 {
@@ -541,6 +545,14 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseResponseCompression();
 app.UseCors("CorsPolicy");

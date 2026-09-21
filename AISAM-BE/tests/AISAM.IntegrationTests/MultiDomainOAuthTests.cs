@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AISAM.IntegrationTests;
@@ -38,11 +39,12 @@ public sealed class MultiDomainOAuthTests
     [Theory]
     [InlineData("https://aisam.io.vn", "https://aisam.io.vn")]
     [InlineData("https://aisam.ddns.net", "https://aisam.ddns.net")]
+    [InlineData("https://api.aisam.io.vn", "https://api.aisam.io.vn")]
     [InlineData("http://localhost:3000", "http://localhost:3000")]
     [InlineData("https://aisam.ddns.net/", "https://aisam.ddns.net")]
     public void OriginResolver_ResolvesAllowedOrigins_Successfully(string candidate, string expected)
     {
-        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net", "http://localhost:3000");
+        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net", "https://api.aisam.io.vn", "http://localhost:3000");
         var resolver = new OriginResolver(config);
 
         var resolved = resolver.ResolveOrigin(candidate);
@@ -184,6 +186,27 @@ public sealed class MultiDomainOAuthTests
 
         var result = await store.ConsumeAsync(expiredState, profileId, "facebook");
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task SignedOAuthStateStore_LogsWarning_WhenConsumeFails()
+    {
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var logger = new TestLogger<SignedOAuthStateStore>();
+        var store = new SignedOAuthStateStore("test-signing-secret-minimum-32-chars-long", cache, logger);
+        var profileId = Guid.NewGuid();
+
+        // 1. Invalid state format
+        var result1 = await store.ConsumeAsync("invalid-state", profileId, "tiktok");
+        Assert.Null(result1);
+        Assert.Contains(logger.LogMessages, m => m.Contains("state format invalid"));
+
+        // 2. Profile ID mismatch
+        var state = await store.CreateAsync(profileId, "tiktok", "https://aisam.ddns.net", "https://aisam.ddns.net/social-callback/tiktok");
+        var otherProfileId = Guid.NewGuid();
+        var result2 = await store.ConsumeAsync(state, otherProfileId, "tiktok");
+        Assert.Null(result2);
+        Assert.Contains(logger.LogMessages, m => m.Contains("ProfileId mismatch"));
     }
 
     [Fact]
@@ -522,5 +545,19 @@ public sealed class MultiDomainOAuthTests
         public string Protect(string plaintext) => $"enc:{plaintext}";
         public string Unprotect(string ciphertext) => ciphertext.StartsWith("enc:") ? ciphertext[4..] : ciphertext;
         public string? TryUnprotect(string ciphertext) => ciphertext.StartsWith("enc:") ? ciphertext[4..] : ciphertext;
+    }
+
+    private sealed class TestLogger<T> : ILogger<T>
+    {
+        public List<string> LogMessages { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            LogMessages.Add(formatter(state, exception));
+        }
     }
 }

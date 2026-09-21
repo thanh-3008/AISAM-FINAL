@@ -41,4 +41,56 @@ describe("TikTok callback relay", () => {
     expect(html).toContain("Processing TikTok authorization");
     expect(html).toContain("'X-RBAC-Contract-Version': '2'");
   });
+
+  it("relays callback to DDNS domain when state Origin is aisam.ddns.net", () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        State: "test-state-1234",
+        ProfileId: "00000000-0000-0000-0000-000000000001",
+        Provider: "tiktok",
+        Origin: "https://aisam.ddns.net",
+        RedirectUri: "https://aisam.ddns.net/social-callback/tiktok",
+      }),
+    ).toString("base64url");
+    const state = `${payload}.mock_signature`;
+
+    // TikTok callback hits the primary domain (e.g. registered redirect URI on TikTok Developer Portal)
+    const request = new NextRequest(
+      `https://aisam.io.vn/social-callback/tiktok?code=test-auth-code&state=${state}`,
+    );
+
+    const response = GET(request);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      `https://aisam.ddns.net/social-callback/tiktok?code=test-auth-code&state=${state}`,
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("renders callback processor when accessed directly on aisam.ddns.net matching state origin", async () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        State: "test-state-1234",
+        ProfileId: "00000000-0000-0000-0000-000000000001",
+        Provider: "tiktok",
+        Origin: "https://aisam.ddns.net",
+        RedirectUri: "https://aisam.ddns.net/social-callback/tiktok",
+      }),
+    ).toString("base64url");
+    const state = `${payload}.mock_signature`;
+
+    // Request on aisam.ddns.net with matching state origin
+    const request = new NextRequest(
+      `https://aisam.ddns.net/social-callback/tiktok?code=test-auth-code&state=${state}`,
+    );
+
+    const response = GET(request);
+
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Processing TikTok authorization");
+    expect(html).toContain("aisam.ddns.net");
+    expect(html).toContain("fallbackApiBaseUrl");
+  });
 });

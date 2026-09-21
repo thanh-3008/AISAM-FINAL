@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using AISAM.Services.IServices;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace AISAM.Services.Service;
 
@@ -11,8 +12,9 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
     private static readonly TimeSpan Expiration = TimeSpan.FromMinutes(10);
     private readonly byte[] _signingKey;
     private readonly IMemoryCache? _cache;
+    private readonly ILogger<SignedOAuthStateStore>? _logger;
 
-    public SignedOAuthStateStore(string signingSecret, IMemoryCache? cache = null)
+    public SignedOAuthStateStore(string signingSecret, IMemoryCache? cache = null, ILogger<SignedOAuthStateStore>? logger = null)
     {
         if (string.IsNullOrWhiteSpace(signingSecret))
         {
@@ -21,6 +23,7 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
 
         _signingKey = Encoding.UTF8.GetBytes(signingSecret);
         _cache = cache;
+        _logger = logger;
     }
 
     public Task<string> CreateAsync(Guid profileId, string provider, string? origin = null, string? redirectUri = null, CancellationToken cancellationToken = default)
@@ -46,12 +49,14 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
     {
         if (string.IsNullOrWhiteSpace(state))
         {
+            _logger?.LogWarning("OAuth state validation failed: state parameter is null or empty for provider {Provider}.", provider);
             return Task.FromResult<OAuthStatePayload?>(null);
         }
 
         var parts = state.Split('.', 2);
         if (parts.Length != 2)
         {
+            _logger?.LogWarning("OAuth state validation failed: state format invalid (missing signature dot) for provider {Provider}.", provider);
             return Task.FromResult<OAuthStatePayload?>(null);
         }
 
@@ -61,6 +66,7 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
 
         if (!FixedTimeEquals(signaturePart, expectedSignaturePart))
         {
+            _logger?.LogWarning("OAuth state validation failed: HMAC signature mismatch for provider {Provider}.", provider);
             return Task.FromResult<OAuthStatePayload?>(null);
         }
 
@@ -68,12 +74,38 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
         {
             var payloadBytes = Base64UrlDecode(payloadPart);
             var payload = JsonSerializer.Deserialize<OAuthStatePayload>(payloadBytes);
-            if (payload == null ||
-                payload.ExpiresAtUtc <= DateTime.UtcNow ||
-                payload.ProfileId != profileId ||
-                !string.Equals(payload.Provider, NormalizeProvider(provider), StringComparison.OrdinalIgnoreCase) ||
-                string.IsNullOrWhiteSpace(payload.State))
+            if (payload == null)
             {
+                _logger?.LogWarning("OAuth state validation failed: deserialized payload is null for provider {Provider}.", provider);
+                return Task.FromResult<OAuthStatePayload?>(null);
+            }
+
+            var shortStateId = payload.State?.Length >= 8 ? payload.State[..8] : (payload.State ?? "unknown");
+
+            if (payload.ExpiresAtUtc <= DateTime.UtcNow)
+            {
+                _logger?.LogWarning("OAuth state validation failed: state {StateId} expired at {ExpiresAtUtc} (current UTC: {CurrentUtc}) for provider {Provider}.",
+                    shortStateId, payload.ExpiresAtUtc, DateTime.UtcNow, provider);
+                return Task.FromResult<OAuthStatePayload?>(null);
+            }
+
+            if (payload.ProfileId != profileId)
+            {
+                _logger?.LogWarning("OAuth state validation failed: ProfileId mismatch for state {StateId}. Expected {ExpectedProfileId}, actual {ActualProfileId} for provider {Provider}.",
+                    shortStateId, payload.ProfileId, profileId, provider);
+                return Task.FromResult<OAuthStatePayload?>(null);
+            }
+
+            if (!string.Equals(payload.Provider, NormalizeProvider(provider), StringComparison.OrdinalIgnoreCase))
+            {
+                _logger?.LogWarning("OAuth state validation failed: Provider mismatch for state {StateId}. Expected {ExpectedProvider}, actual {ActualProvider}.",
+                    shortStateId, payload.Provider, provider);
+                return Task.FromResult<OAuthStatePayload?>(null);
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.State))
+            {
+                _logger?.LogWarning("OAuth state validation failed: State ID is empty for provider {Provider}.", provider);
                 return Task.FromResult<OAuthStatePayload?>(null);
             }
 
@@ -83,6 +115,7 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
                 if (_cache.TryGetValue(cacheKey, out _))
                 {
                     // State already consumed once; reject replay attempt
+                    _logger?.LogWarning("OAuth state validation failed: Replay detected for state {StateId} and provider {Provider}.", shortStateId, provider);
                     return Task.FromResult<OAuthStatePayload?>(null);
                 }
 
@@ -91,8 +124,9 @@ public sealed class SignedOAuthStateStore : IOAuthStateStore
 
             return Task.FromResult<OAuthStatePayload?>(payload);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "OAuth state validation failed: exception during state decode/deserialize for provider {Provider}.", provider);
             return Task.FromResult<OAuthStatePayload?>(null);
         }
     }
