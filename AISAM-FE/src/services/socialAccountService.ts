@@ -194,7 +194,13 @@ export async function fetchSocialAccounts(): Promise<{ data: SocialAccount[]; to
 }
 
 export async function getSocialAuthUrl(platform: SocialPlatform): Promise<AuthUrlResponse> {
-  const res: GenericResponse<BEAuthUrlResponse> = await apiClient(`/social-auth/${platform}`);
+  const origin = typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : "";
+  const query = origin ? `?origin=${encodeURIComponent(origin)}` : "";
+  const res: GenericResponse<BEAuthUrlResponse> = await apiClient(`/social-auth/${platform}${query}`, {
+    headers: origin ? { "X-Client-Origin": origin } : undefined,
+  });
   if (res?.data) {
     return { authUrl: res.data.authUrl, state: res.data.state };
   }

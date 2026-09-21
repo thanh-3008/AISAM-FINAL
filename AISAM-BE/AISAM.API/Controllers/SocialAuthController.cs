@@ -30,13 +30,15 @@ public sealed class SocialAuthController : ControllerBase
     }
 
     [HttpGet("facebook")]
-    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetFacebookAuthUrl(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetFacebookAuthUrl([FromQuery] string? origin = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
-            var origin = _originResolver.ResolveOrigin(Request);
-            var result = await _socialService.GetAuthUrlAsync("facebook", profileId, origin, cancellationToken);
+            var resolvedOrigin = !string.IsNullOrWhiteSpace(origin) && _originResolver.IsAllowedOrigin(origin)
+                ? _originResolver.ResolveOrigin(origin)
+                : _originResolver.ResolveOrigin(Request);
+            var result = await _socialService.GetAuthUrlAsync("facebook", profileId, resolvedOrigin, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -91,13 +93,15 @@ public sealed class SocialAuthController : ControllerBase
     }
 
     [HttpGet("instagram")]
-    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetInstagramAuthUrl(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetInstagramAuthUrl([FromQuery] string? origin = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
-            var origin = _originResolver.ResolveOrigin(Request);
-            var result = await _socialService.GetAuthUrlAsync("instagram", profileId, origin, cancellationToken);
+            var resolvedOrigin = !string.IsNullOrWhiteSpace(origin) && _originResolver.IsAllowedOrigin(origin)
+                ? _originResolver.ResolveOrigin(origin)
+                : _originResolver.ResolveOrigin(Request);
+            var result = await _socialService.GetAuthUrlAsync("instagram", profileId, resolvedOrigin, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
@@ -151,13 +155,15 @@ public sealed class SocialAuthController : ControllerBase
     }
 
     [HttpGet("tiktok")]
-    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetTikTokAuthUrl(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<GenericResponse<AuthUrlResponse>>> GetTikTokAuthUrl([FromQuery] string? origin = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var profileId = await WorkspaceLegacyProfileHelper.GetOrCreateProfileIdAsync(HttpContext, _profileRepository, cancellationToken);
-            var origin = _originResolver.ResolveOrigin(Request);
-            var result = await _socialService.GetAuthUrlAsync("tiktok", profileId, origin, cancellationToken);
+            var resolvedOrigin = !string.IsNullOrWhiteSpace(origin) && _originResolver.IsAllowedOrigin(origin)
+                ? _originResolver.ResolveOrigin(origin)
+                : _originResolver.ResolveOrigin(Request);
+            var result = await _socialService.GetAuthUrlAsync("tiktok", profileId, resolvedOrigin, cancellationToken);
             return Ok(GenericResponse<AuthUrlResponse>.CreateSuccess(result));
         }
         catch (UnauthorizedAccessException)
