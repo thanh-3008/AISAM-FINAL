@@ -12,12 +12,18 @@ public sealed record MemberPerformanceRow(Guid MemberId, string Name, int Conten
     decimal? FailedPublishRate, decimal? TurnaroundHours, int PostsWithInsights,
     long? Engagement, long? Impressions, long? Reach, decimal? EngagementRate, DateTime? InsightsUpdatedAt,
     IReadOnlyList<string> TeamRoles);
+public sealed record TeamPerformanceRow(Guid TeamId, string TeamName, int MemberCount,
+    int ContentsCreated, int PublishedFromTeamContent, int PublishedByTeamMembers,
+    int ReviewsCompleted, decimal? ApprovalRate, decimal? AverageReviewHours,
+    int CompletedSchedules, int PendingSchedules, int FailedSchedules,
+    decimal? OnTimeRate, decimal? FailedPublishRate, int PostsWithInsights,
+    long? Engagement, long? Impressions, long? Reach, decimal? EngagementRate);
 public sealed record PerformanceOption(Guid Id, string Name);
 public sealed record MemberPerformanceResult(IReadOnlyList<MemberPerformanceRow> Items, int Total,
     DateTime From, DateTime To, DateTime UpdatedAt, int? UnattributedContents,
     IReadOnlyList<PerformanceOption> Brands, IReadOnlyList<PerformanceOption> Teams,
     IReadOnlyList<PerformanceOption> Members, IReadOnlyDictionary<string,string> MetricDefinitions,
-    bool CanViewAllTeams, bool TeamSelectionRequired);
+    bool CanViewAllTeams, bool TeamSelectionRequired, IReadOnlyList<TeamPerformanceRow> TeamSummaries);
 
 public sealed class MemberPerformanceService(AisamContext db, IAccessControlService access)
 {
@@ -30,7 +36,8 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
         ["turnaroundHours"]="Mean hours from submission to decision for submissions reviewed by the member in period; missing/invalid timestamps excluded.",
         ["engagement"]="Latest cumulative snapshot per destination post published in period, as of report generation; not incremental engagement earned during the selected dates. Stored provider engagement may mean engaged users or reactions + comments + shares.",
         ["engagementRate"]="100 × summed engagement / summed impressions on posts with snapshots. Reach is separate and is summed per post, not unique people across posts. No reports or zero denominator = null.",
-        ["scope"]="Owner and Workspace Manager can view all active Teams. Team Manager must select a Team they actively manage and can only view members and resources in that Team. Team means content's recorded TeamId, not inferred historical membership. Workspace management alone receives unattributed content count."
+        ["scope"]="Owner and Workspace Manager can view all active Teams. Team Manager must select a Team they actively manage and can only view members and resources in that Team. Team means content's recorded TeamId, not inferred historical membership. Workspace management alone receives unattributed content count.",
+        ["teamComparison"]="Team totals use the content's recorded TeamId. Publishing, reviewing and scheduling activity is attributed to users who are currently active members of that Team; a person in multiple Teams can contribute to each matching Team."
     };
     public static decimal? Rate(long numerator,long denominator) => denominator==0?null:Math.Round(100m*numerator/denominator,2);
     private static bool HasInsight(PerformanceReport report,string metric)
@@ -46,7 +53,8 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
     }
 
     public async Task<MemberPerformanceResult> GetAsync(Guid actor,Guid workspace,DateTime from,DateTime to,
-        Guid? brandId=null,Guid? teamId=null,Guid? memberId=null,int page=1,int pageSize=20,CancellationToken ct=default)
+        Guid? brandId=null,Guid? teamId=null,Guid? memberId=null,int page=1,int pageSize=20,
+        bool includeTeamComparison=false,CancellationToken ct=default)
     {
         if(from.Kind!=DateTimeKind.Utc || to.Kind!=DateTimeKind.Utc || from>=to || to-from>TimeSpan.FromDays(366) || page<1 || page>100000 || pageSize<1 || pageSize>100)
             throw new ArgumentException("Use a UTC interval from < to, at most 366 days; pageSize 1–100.");
@@ -79,7 +87,7 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
         if(brandId.HasValue) brandIds=[brandId.Value];
 
         if(!owner && !teamId.HasValue)
-            return new([],0,from,to,DateTime.UtcNow,null,brands,teams,[],Definitions,false,true);
+            return new([],0,from,to,DateTime.UtcNow,null,brands,teams,[],Definitions,false,true,[]);
 
         var membersQuery=db.WorkspaceMembers.IgnoreQueryFilters().AsNoTracking().Where(m=>m.WorkspaceId==workspace && m.IsActive);
         if(teamId.HasValue) membersQuery=membersQuery.Where(m=>db.TeamMembers.IgnoreQueryFilters().Any(tm=>tm.TeamId==teamId && tm.UserId==m.UserId && tm.IsActive));
@@ -163,7 +171,83 @@ public sealed class MemberPerformanceService(AisamContext db, IAccessControlServ
         }
         int? unattributed=owner?await db.Contents.IgnoreQueryFilters().CountAsync(c=>c.WorkspaceId==workspace && !c.IsDeleted && brandIds.Contains(c.BrandId) &&
             (!teamId.HasValue || c.TeamId==teamId) && c.PrimaryCreatorId==null && c.CreatedAt>=from && c.CreatedAt<to,ct):null;
-        return new(rows,selected.Count,from,to,DateTime.UtcNow,unattributed,brands,teams,permittedMembers,Definitions,owner,false);
+        var teamSummaries=includeTeamComparison && owner && !teamId.HasValue && !memberId.HasValue
+            ? await GetTeamSummariesAsync(workspace,from,to,brandIds,teams,ct) : [];
+        return new(rows,selected.Count,from,to,DateTime.UtcNow,unattributed,brands,teams,permittedMembers,Definitions,owner,false,teamSummaries);
+    }
+
+    private async Task<IReadOnlyList<TeamPerformanceRow>> GetTeamSummariesAsync(Guid workspace,DateTime from,DateTime to,
+        Guid[] brandIds,IReadOnlyList<PerformanceOption> teams,CancellationToken ct)
+    {
+        var teamIds=teams.Select(t=>t.Id).ToArray();
+        if(teamIds.Length==0) return [];
+        var memberships=await db.TeamMembers.IgnoreQueryFilters().AsNoTracking()
+            .Where(tm=>teamIds.Contains(tm.TeamId) && tm.IsActive && db.WorkspaceMembers.IgnoreQueryFilters()
+                .Any(wm=>wm.WorkspaceId==workspace && wm.UserId==tm.UserId && wm.IsActive))
+            .Select(tm=>new {tm.TeamId,tm.UserId}).ToListAsync(ct);
+        var memberSets=memberships.GroupBy(x=>x.TeamId).ToDictionary(g=>g.Key,g=>g.Select(x=>x.UserId).ToHashSet());
+        var contents=await db.Contents.IgnoreQueryFilters().AsNoTracking()
+            .Where(c=>c.WorkspaceId==workspace && !c.IsDeleted && c.TeamId.HasValue && teamIds.Contains(c.TeamId.Value) && brandIds.Contains(c.BrandId) &&
+                db.TeamBrands.IgnoreQueryFilters().Any(tb=>tb.TeamId==c.TeamId && tb.BrandId==c.BrandId && tb.IsActive))
+            .Select(c=>new {c.Id,TeamId=c.TeamId!.Value,c.CreatedAt}).ToListAsync(ct);
+        var contentIds=contents.Select(c=>c.Id).ToArray();
+        var contentTeams=contents.ToDictionary(c=>c.Id,c=>c.TeamId);
+        var posts=contentIds.Length==0?[]:await (from p in db.Posts.IgnoreQueryFilters().AsNoTracking()
+            join c in db.Contents.IgnoreQueryFilters().AsNoTracking() on p.ContentId equals c.Id
+            join i in db.SocialIntegrations.IgnoreQueryFilters().AsNoTracking() on p.IntegrationId equals i.Id
+            let operationActor=db.PublishOperations.IgnoreQueryFilters().AsNoTracking()
+                .Where(o=>o.WorkspaceId==workspace && o.ContentId==p.ContentId && o.IntegrationId==p.IntegrationId && o.Status=="Published" &&
+                    ((p.ExternalPostId!=null && o.ProviderId==p.ExternalPostId) || (p.SnapshotId!=null && o.SnapshotId==p.SnapshotId)))
+                .OrderByDescending(o=>o.UpdatedAt).Select(o=>(Guid?)o.ActorId).FirstOrDefault()
+            where contentIds.Contains(p.ContentId) && !p.IsDeleted && !i.IsDeleted && i.WorkspaceId==workspace && i.BrandId==c.BrandId &&
+                p.Status==ContentStatusEnum.Published && p.PublishedAt>=@from && p.PublishedAt<to
+            select new {Post=p,TeamId=c.TeamId!.Value,Publisher=p.PublishedByUserId??operationActor}).ToListAsync(ct);
+        var uniquePosts=posts.GroupBy(p=>(p.TeamId,p.Post.IntegrationId,Key:string.IsNullOrEmpty(p.Post.ExternalPostId)?p.Post.Id.ToString():p.Post.ExternalPostId))
+            .Select(g=>g.OrderBy(p=>p.Post.PublishedAt).ThenBy(p=>p.Post.Id).First()).ToList();
+        var postIds=posts.Select(p=>p.Post.Id).ToArray();
+        var destinationByPost=posts.ToDictionary(p=>p.Post.Id,p=>(p.TeamId,p.Post.IntegrationId,Key:string.IsNullOrEmpty(p.Post.ExternalPostId)?p.Post.Id.ToString():p.Post.ExternalPostId));
+        var reports=postIds.Length==0?[]:await db.PerformanceReports.IgnoreQueryFilters().AsNoTracking()
+            .Where(r=>!r.IsDeleted && r.PostId.HasValue && postIds.Contains(r.PostId.Value) && r.AdId==null).ToListAsync(ct);
+        var latestReports=reports.Where(r=>HasInsight(r,"engagement") || HasInsight(r,"impressions") || HasInsight(r,"reach"))
+            .GroupBy(r=>destinationByPost[r.PostId!.Value]).Select(g=>g.OrderByDescending(r=>r.ReportDate).ThenByDescending(r=>r.CreatedAt).ThenBy(r=>r.Id).First()).ToList();
+        var approvals=contentIds.Length==0?[]:await db.Approvals.IgnoreQueryFilters().AsNoTracking()
+            .Where(a=>!a.IsDeleted && contentIds.Contains(a.ContentId) && a.ApproverUserId.HasValue && a.SubmittedAt.HasValue &&
+                (a.Status==ContentStatusEnum.Approved || a.Status==ContentStatusEnum.Rejected) && (a.ApprovedAt??a.CreatedAt)>=from && (a.ApprovedAt??a.CreatedAt)<to).ToListAsync(ct);
+        var decisions=approvals.GroupBy(a=>(TeamId:contentTeams[a.ContentId],a.ContentId,a.SubmittedAt))
+            .Select(g=>g.OrderByDescending(a=>a.ApprovedAt??a.CreatedAt).ThenBy(a=>a.Id).First()).ToList();
+        var schedules=contentIds.Length==0?[]:await db.ContentCalendars.IgnoreQueryFilters().AsNoTracking()
+            .Where(s=>s.WorkspaceId==workspace && !s.IsDeleted && s.RepeatType==RepeatTypeEnum.None && s.ScheduledByUserId.HasValue &&
+                contentIds.Contains(s.ContentId) && s.ScheduledAt>=from && s.ScheduledAt<to).ToListAsync(ct);
+
+        return teams.Select(team=>
+        {
+            var members=memberSets.GetValueOrDefault(team.Id,[]);
+            var teamContents=contents.Where(c=>c.TeamId==team.Id).ToList();
+            var teamPosts=uniquePosts.Where(p=>p.TeamId==team.Id).ToList();
+            var contentDecisions=decisions.Where(a=>contentTeams[a.ContentId]==team.Id).ToList();
+            var reviewerDecisions=contentDecisions.Where(a=>a.ApproverUserId.HasValue && members.Contains(a.ApproverUserId.Value)).ToList();
+            var turnaround=reviewerDecisions.Where(a=>(a.ApprovedAt??a.CreatedAt)>=a.SubmittedAt)
+                .Select(a=>((a.ApprovedAt??a.CreatedAt)-a.SubmittedAt!.Value).TotalHours).ToList();
+            var teamSchedules=schedules.Where(s=>contentTeams[s.ContentId]==team.Id && s.ScheduledByUserId.HasValue && members.Contains(s.ScheduledByUserId.Value)).ToList();
+            var completed=teamSchedules.Where(s=>s.Status==ScheduleStatusEnum.Completed).ToList();
+            var timed=completed.Where(s=>s.ExecutedAt.HasValue).ToList();
+            var failed=teamSchedules.Count(s=>s.Status==ScheduleStatusEnum.Failed);
+            var teamReports=latestReports.Where(r=>destinationByPost[r.PostId!.Value].TeamId==team.Id).ToList();
+            var engagementKnown=teamReports.Count>0 && teamReports.All(r=>HasInsight(r,"engagement"));
+            var impressionsKnown=teamReports.Count>0 && teamReports.All(r=>HasInsight(r,"impressions"));
+            var reachKnown=teamReports.Count>0 && teamReports.All(r=>HasInsight(r,"reach"));
+            return new TeamPerformanceRow(team.Id,team.Name,members.Count,
+                teamContents.Count(c=>c.CreatedAt>=from && c.CreatedAt<to),teamPosts.Count,
+                teamPosts.Count(p=>p.Publisher.HasValue && members.Contains(p.Publisher.Value)),reviewerDecisions.Count,
+                Rate(contentDecisions.Count(a=>a.Status==ContentStatusEnum.Approved),contentDecisions.Count),
+                turnaround.Count==0?null:Math.Round((decimal)turnaround.Average(),2),completed.Count,
+                teamSchedules.Count(s=>s.Status is ScheduleStatusEnum.Pending or ScheduleStatusEnum.Processing),failed,
+                Rate(timed.Count(s=>Math.Abs((s.ExecutedAt!.Value-s.ScheduledAt!.Value).TotalMinutes)<=5),timed.Count),
+                Rate(failed,failed+completed.Count),teamReports.Count,
+                engagementKnown?teamReports.Sum(r=>r.Engagement):null,impressionsKnown?teamReports.Sum(r=>r.Impressions):null,
+                reachKnown?teamReports.Sum(r=>r.Reach):null,
+                engagementKnown&&impressionsKnown?Rate(teamReports.Sum(r=>r.Engagement),teamReports.Sum(r=>r.Impressions)):null);
+        }).ToArray();
     }
 }
 public sealed class PerformanceAccessException(int statusCode):Exception("Member performance is outside your access scope.") { public int StatusCode {get;}=statusCode; }

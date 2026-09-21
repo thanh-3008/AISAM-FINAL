@@ -53,6 +53,8 @@ public class MemberPerformanceTests
         Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(viewer.Id,w.Id,from,to))).StatusCode);
         wm.WorkspaceRoleV2=WorkspaceRoleV2.WorkspaceManager;await db.SaveChangesAsync();
         Assert.Equal(4,Assert.Single((await service.GetAsync(actor.Id,w.Id,from,to,memberId:other.Id)).Items).ContentsCreated);
+        var teamComparison=await service.GetAsync(actor.Id,w.Id,from,to,includeTeamComparison:true);
+        Assert.All(new[]{a.Id,v.Id,c.Id},id=>Assert.Contains(teamComparison.TeamSummaries,row=>row.TeamId==id));
         wm.IsActive=false;await db.SaveChangesAsync();
         Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(actor.Id,w.Id,from,to))).StatusCode);
     }
@@ -93,7 +95,7 @@ public class MemberPerformanceTests
         await db.SaveChangesAsync();db.ChangeTracker.Clear();
         var service=new MemberPerformanceService(db,new AccessControlService(db));
         Assert.Equal(403,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(creator.Id,w.Id,start,end))).StatusCode);
-        var ownerResult=await service.GetAsync(owner.Id,w.Id,start,end);
+        var ownerResult=await service.GetAsync(owner.Id,w.Id,start,end,includeTeamComparison:true);
         var row=ownerResult.Items.Single(r=>r.MemberId==creator.Id);
         Assert.Equal(2,row.ContentsCreated);Assert.Equal(1,row.CreatorPublishedPosts);Assert.Equal(0,row.PublisherPublishedPosts);
         Assert.Equal(50m,row.ApprovalRate);Assert.Null(row.TurnaroundHours);Assert.Equal(50m,row.OnTimeRate);Assert.Equal(33.33m,row.FailedPublishRate);
@@ -108,6 +110,12 @@ public class MemberPerformanceTests
         Assert.Equal(1,ownerResult.UnattributedContents);Assert.Equal(2,ownerResult.Items.Single(r=>r.MemberId==creator.Id).ContentsCreated);
         Assert.Equal(1,ownerResult.Items.Single(r=>r.MemberId==owner.Id).PublisherPublishedPosts);
         Assert.Null(ownerResult.Items.Single(r=>r.MemberId==owner.Id).EngagementRate);
+        var teamSummary=Assert.Single(ownerResult.TeamSummaries.Where(r=>r.TeamId==team.Id));
+        Assert.Equal(2,teamSummary.MemberCount);Assert.Equal(1,teamSummary.ContentsCreated);
+        Assert.Equal(1,teamSummary.PublishedFromTeamContent);Assert.Equal(0,teamSummary.PublishedByTeamMembers);
+        Assert.Equal(2,teamSummary.ReviewsCompleted);Assert.Equal(50m,teamSummary.ApprovalRate);Assert.Equal(3m,teamSummary.AverageReviewHours);
+        Assert.Equal(2,teamSummary.CompletedSchedules);Assert.Equal(1,teamSummary.PendingSchedules);Assert.Equal(1,teamSummary.FailedSchedules);
+        Assert.Equal(50m,teamSummary.OnTimeRate);Assert.Equal(33.33m,teamSummary.FailedPublishRate);Assert.Equal(15m,teamSummary.EngagementRate);
         Assert.Null(MemberPerformanceService.Rate(0,0));
         await Assert.ThrowsAsync<ArgumentException>(()=>service.GetAsync(owner.Id,w.Id,end,start));
         Assert.Equal(404,(await Assert.ThrowsAsync<PerformanceAccessException>(()=>service.GetAsync(owner.Id,w.Id,start,end,teamId:Guid.NewGuid()))).StatusCode);

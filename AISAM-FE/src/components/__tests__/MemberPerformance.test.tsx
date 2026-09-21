@@ -21,6 +21,11 @@ const ownerReport = {
     brands: [{ id: "alpha", name: "Alpha" }], teams: [{ id: "team-a", name: "Team A" }],
     members: [{ id: "c", name: "Creator" }], metricDefinitions: { period: "UTC" },
     canViewAllTeams: true, teamSelectionRequired: false,
+    teamSummaries: [{ teamId: "team-a", teamName: "Team A", memberCount: 2, contentsCreated: 4,
+      publishedFromTeamContent: 3, publishedByTeamMembers: 2, reviewsCompleted: 2,
+      approvalRate: 50, averageReviewHours: 3, completedSchedules: 2, pendingSchedules: 1,
+      failedSchedules: 1, onTimeRate: 50, failedPublishRate: 33.33, postsWithInsights: 1,
+      engagement: 30, impressions: 200, reach: 120, engagementRate: 15 }],
   },
 };
 
@@ -45,7 +50,7 @@ it("automatically scopes a Team Manager to a managed Team", async () => {
     .mockResolvedValueOnce({ success: true, data: { items: [], total: 0, updatedAt: "2026-09-08T00:00:00Z",
       brands: [], teams: [{ id: "team-a", name: "Team A" }], members: [], metricDefinitions: {},
       canViewAllTeams: false, teamSelectionRequired: true } })
-    .mockResolvedValue(ownerReport);
+    .mockResolvedValue({ ...ownerReport, data: { ...ownerReport.data, canViewAllTeams: false, teamSelectionRequired: false, teamSummaries: [] } });
   render(<Page />);
   await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(2));
   expect(vi.mocked(apiClient).mock.calls[1][0]).toContain("teamId=team-a");
@@ -66,4 +71,16 @@ it("shows Not applicable for a Viewer instead of treating missing responsibility
   await screen.findAllByText("Viewer");
   expect(screen.getAllByText("Not applicable").length).toBeGreaterThan(1);
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("lets workspace management compare Teams without member charts", async () => {
+  vi.mocked(apiClient).mockResolvedValue(ownerReport);
+  render(<Page />);
+  await screen.findAllByText("Creator");
+  fireEvent.click(screen.getByRole("button", { name: "Compare Teams" }));
+  await waitFor(() => expect(apiClient).toHaveBeenLastCalledWith(expect.stringContaining("compareTeams=true")));
+  expect((await screen.findAllByText("Team A")).length).toBeGreaterThan(1);
+  expect(screen.getAllByText("Published from Team content").length).toBeGreaterThan(0);
+  expect((screen.getByLabelText("Team") as HTMLSelectElement).disabled).toBe(true);
+  expect(screen.queryByRole("img")).toBeNull();
 });
