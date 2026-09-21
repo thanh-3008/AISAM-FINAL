@@ -14,6 +14,8 @@ public class PostServiceTests
     public async Task GetPagedAsync_ReturnsOnlyPostsForActiveProfile()
     {
         var profileId = Guid.NewGuid();
+        var creator = new User { Id = Guid.NewGuid(), FullName = "Content Creator", Email = "creator@test.local" };
+        var reviewer = new User { Id = Guid.NewGuid(), FullName = "Team Reviewer", Email = "reviewer@test.local" };
         var ownBrand = new Brand { Id = Guid.NewGuid(), ProfileId = profileId, Name = "Own brand" };
         var ownContent = new Content
         {
@@ -22,8 +24,14 @@ public class PostServiceTests
             BrandId = ownBrand.Id,
             Brand = ownBrand,
             Title = "Owned content",
-            TextContent = "Owned text"
+            TextContent = "Owned text",
+            PrimaryCreatorId = creator.Id,
+            PrimaryCreator = creator,
+            TeamId = Guid.NewGuid(),
+            TeamName = "Marketing Team"
         };
+        ownContent.Approvals.Add(new Approval { ContentId = ownContent.Id, Status = ContentStatusEnum.Approved,
+            ApproverUserId = reviewer.Id, ApproverUser = reviewer, ReviewerNameSnapshot = "Reviewer Snapshot", ApprovedAt = DateTime.UtcNow });
         var otherContent = new Content
         {
             Id = Guid.NewGuid(),
@@ -60,6 +68,9 @@ public class PostServiceTests
         Assert.Equal(ownPost.Id, item.Id);
         Assert.Equal("Owned content", item.ContentTitle);
         Assert.Equal("Own brand", item.BrandName);
+        Assert.Equal("Content Creator", item.CreatorName);
+        Assert.Equal("Reviewer Snapshot", item.ReviewerName);
+        Assert.Equal("Marketing Team", item.TeamName);
     }
 
     [Fact]

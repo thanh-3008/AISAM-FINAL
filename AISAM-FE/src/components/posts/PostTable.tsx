@@ -131,6 +131,9 @@ export default function PostTable({
                     <th className="px-6 py-4 text-label-sm text-outline uppercase tracking-wider font-semibold">
                       Platform & Brand
                     </th>
+                    <th className="px-6 py-4 text-label-sm text-outline uppercase tracking-wider font-semibold">
+                      Attribution
+                    </th>
                     <th className="px-6 py-4 text-label-sm text-outline uppercase tracking-wider font-semibold cursor-pointer select-none hover:text-on-surface"
                       onClick={() => onSort("status")}>
                       Status

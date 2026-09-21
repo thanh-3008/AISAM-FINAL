@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { RbacContext, parseRbacContext, type RbacContextValue } from "@/contexts/RbacContext";
 import TeamScopeSelect from "@/components/content/TeamScopeSelect";
 import RbacTeamManagement from "@/components/team/RbacTeamManagement";
@@ -18,6 +18,7 @@ it("does not offer Viewer Team B for creation when the same user manages A", asy
 });
 it("does not show workspace HR or Team creation to a Team manager", async () => {
   render(<RbacContext.Provider value={context}><RbacTeamManagement /></RbacContext.Provider>);
+  fireEvent.click(await screen.findByRole("button", { name: "Teams" }));
   await screen.findByRole("button", { name: "Team A" });
   expect(screen.queryByRole("button", { name: "Tạo Team" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Mời vào workspace" })).toBeNull();

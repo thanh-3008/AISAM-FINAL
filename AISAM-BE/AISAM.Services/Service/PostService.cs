@@ -84,6 +84,10 @@ public sealed class PostService : IPostService
 
     private static PostListItemDto MapToDto(Post post)
     {
+        var review = post.Content.Approvals
+            .Where(approval => !approval.IsDeleted && approval.Status is ContentStatusEnum.Approved or ContentStatusEnum.Rejected)
+            .OrderByDescending(approval => approval.ApprovedAt ?? approval.CreatedAt)
+            .FirstOrDefault();
         return new PostListItemDto
         {
             Id = post.Id,
@@ -95,6 +99,14 @@ public sealed class PostService : IPostService
             ContentTitle = post.Content.Title,
             BrandId = post.Content.Brand?.Id,
             BrandName = post.Content.Brand?.Name,
+            CreatorId = post.Content.PrimaryCreatorId,
+            CreatorName = DisplayName(post.Content.PrimaryCreator),
+            ReviewerId = review?.ApproverUserId,
+            ReviewerName = !string.IsNullOrWhiteSpace(review?.ReviewerNameSnapshot)
+                ? review.ReviewerNameSnapshot
+                : DisplayName(review?.ApproverUser),
+            TeamId = post.Content.TeamId,
+            TeamName = post.Content.TeamName,
             Platform = MapPlatform(post.Integration?.Platform),
             Type = MapAdType(post.Content.AdType),
             Caption = post.Content.TextContent,
@@ -105,4 +117,7 @@ public sealed class PostService : IPostService
             ThumbnailUrl = post.Content.ThumbnailUrl
         };
     }
+
+    private static string? DisplayName(User? user)
+        => user is null ? null : !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email;
 }

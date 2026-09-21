@@ -26,6 +26,7 @@ type PendingInvitation = {
 
 type MemberRoleFilter = "All" | WorkspaceRoleV2;
 type TeamStatusFilter = "All" | "Active" | "Inactive";
+type ManagementView = "overview" | "members" | "invitations" | "teams";
 
 const roleName = (role: string) => getRoleLabel(role);
 
@@ -69,6 +70,7 @@ export default function RbacTeamManagement() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<ManagementView>("overview");
 
   const [memberSearch, setMemberSearch] = useState("");
   const [memberRoleFilter, setMemberRoleFilter] = useState<MemberRoleFilter>("All");
@@ -117,14 +119,14 @@ export default function RbacTeamManagement() {
   useEffect(() => {
     let active = true;
     setDetail(null);
-    if (!selected) return () => { active = false; };
+    if (view !== "teams" || !selected) return () => { active = false; };
     setLoadingDetail(true);
     apiClient(`/teams/${selected}`)
       .then(response => { if (active) setDetail(response.data); })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : "Failed to load Team details."); })
       .finally(() => { if (active) setLoadingDetail(false); });
     return () => { active = false; };
-  }, [selected]);
+  }, [selected, view]);
 
   const run = async (action: () => Promise<unknown>, message: string, refreshDetail = true) => {
     setBusy(true);
@@ -172,6 +174,12 @@ export default function RbacTeamManagement() {
   const activeDetailMembers = (detail?.members ?? []).filter(member => member.isActive);
   const activeBrands = (detail?.brands ?? []).filter(brand => brand.isActive);
   const availableMembers = members.filter(member => !(detail?.members ?? []).some(teamMember => teamMember.userId === member.userId && teamMember.isActive));
+  const navigation: Array<{ id: ManagementView; label: string; description: string; icon: string; count?: number }> = [
+    { id: "overview", label: "Overview", description: "Workspace summary", icon: "dashboard" },
+    { id: "members", label: "Workspace members", description: "Roles and access", icon: "group", count: members.length },
+    ...(workspaceHrAdmin ? [{ id: "invitations" as const, label: "Invitations", description: "Pending invitations", icon: "outgoing_mail", count: pendingInvitations.length }] : []),
+    { id: "teams", label: "Teams", description: "Members, roles and Brands", icon: "workspaces", count: teams.length },
+  ];
 
   return (
     <main className="mx-auto w-full max-w-[1440px] space-y-7 p-5 md:p-8 xl:p-10">
@@ -202,22 +210,39 @@ export default function RbacTeamManagement() {
         </div>
       </header>
 
-      <section aria-label="Team overview" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <nav aria-label="Team management sections" className="sticky top-3 z-20 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg shadow-slate-200/40 backdrop-blur">
+        <div className={`grid gap-2 ${workspaceHrAdmin ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"}`}>
+          {navigation.map(item => {
+            const active = view === item.id;
+            return <button key={item.id} type="button" aria-label={item.label} aria-pressed={active} onClick={() => setView(item.id)} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left transition ${active ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>
+              <span className={`material-symbols-outlined flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? "bg-white/15" : "bg-slate-100 text-slate-500"}`}>{item.icon}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.label}</span><span className={`block truncate text-xs ${active ? "text-blue-100" : "text-slate-400"}`}>{item.description}</span></span>
+              {item.count !== undefined && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>{item.count}</span>}
+            </button>;
+          })}
+        </div>
+      </nav>
+
+      {view === "overview" && <section aria-label="Team overview" className="space-y-5">
+        <div><h2 className="text-xl font-bold text-slate-950">Workspace overview</h2><p className="mt-1 text-sm text-slate-500">Choose a card to open the area you want to manage.</p></div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          { label: "Workspace members", value: members.length, icon: "group", color: "bg-blue-50 text-blue-600" },
-          { label: "Workspace managers", value: managerCount, icon: "admin_panel_settings", color: "bg-violet-50 text-violet-600" },
-          { label: "Pending invitations", value: pendingInvitations.length, icon: "schedule_send", color: "bg-cyan-50 text-cyan-700" },
-          { label: "Active teams", value: activeTeamCount, icon: "workspaces", color: "bg-emerald-50 text-emerald-600" },
-          { label: "Assigned brands", value: teams.reduce((sum, team) => sum + (team.brandCount ?? 0), 0), icon: "sell", color: "bg-amber-50 text-amber-600" },
+          { label: "Workspace members", value: members.length, icon: "group", color: "bg-blue-50 text-blue-600", target: "members" as const },
+          { label: "Workspace managers", value: managerCount, icon: "admin_panel_settings", color: "bg-violet-50 text-violet-600", target: "members" as const },
+          ...(workspaceHrAdmin ? [{ label: "Pending invitations", value: pendingInvitations.length, icon: "schedule_send", color: "bg-cyan-50 text-cyan-700", target: "invitations" as const }] : []),
+          { label: "Active teams", value: activeTeamCount, icon: "workspaces", color: "bg-emerald-50 text-emerald-600", target: "teams" as const },
+          { label: "Assigned brands", value: teams.reduce((sum, team) => sum + (team.brandCount ?? 0), 0), icon: "sell", color: "bg-amber-50 text-amber-600", target: "teams" as const },
         ].map(item => (
-          <article key={item.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.color}`}>
+          <button type="button" onClick={() => setView(item.target)} key={item.label} className="group relative flex min-h-28 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 pr-11 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md 2xl:gap-4 2xl:p-5 2xl:pr-12">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${item.color}`}>
               <span className="material-symbols-outlined">{item.icon}</span>
             </div>
-            <div><p className="text-2xl font-bold text-slate-950">{loading ? "—" : item.value}</p><p className="text-sm text-slate-500">{item.label}</p></div>
-          </article>
+            <div className="min-w-0 flex-1"><p className="text-2xl font-bold text-slate-950">{loading ? "—" : item.value}</p><p className="mt-0.5 text-sm leading-5 text-slate-500">{item.label}</p></div>
+            <span className="material-symbols-outlined absolute right-4 top-4 text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-500">arrow_forward</span>
+          </button>
         ))}
-      </section>
+        </div>
+      </section>}
 
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
@@ -231,7 +256,7 @@ export default function RbacTeamManagement() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      {view === "members" && <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 p-6 md:p-7">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div><h2 className="text-xl font-bold text-slate-950">Workspace members</h2><p className="mt-1 text-sm text-slate-500">Roles here manage organization level, separate from Team roles.</p></div>
@@ -282,9 +307,9 @@ export default function RbacTeamManagement() {
           })}
           {!loading && filteredMembers.length === 0 && <div className="p-10 text-center"><span className="material-symbols-outlined text-4xl text-slate-300">person_search</span><p className="mt-2 font-semibold text-slate-700">No members found</p><p className="text-sm text-slate-500">Try adjusting your search or role filter.</p></div>}
         </div>
-      </section>
+      </section>}
 
-      {workspaceHrAdmin && (
+      {view === "invitations" && workspaceHrAdmin && (
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-6 md:flex-row md:items-center md:p-7">
             <div>
@@ -320,7 +345,7 @@ export default function RbacTeamManagement() {
         </section>
       )}
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-7">
+      {view === "teams" && <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-7">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center"><div><h2 className="text-xl font-bold text-slate-950">Team list</h2><p className="mt-1 text-sm text-slate-500">Select a Team to manage members, roles, and assigned Brands.</p></div><span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{filteredTeams.length}/{teams.length} Teams</span></div>
 
         {admin && (
@@ -378,7 +403,7 @@ export default function RbacTeamManagement() {
             )}
           </div>
         </div>
-      </section>
+      </section>}
     </main>
   );
 }

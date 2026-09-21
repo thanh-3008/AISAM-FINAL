@@ -11,6 +11,9 @@ namespace AISAM.Services.Access;
 public sealed record AssignmentChange(Guid ActorId, Guid WorkspaceId, Guid BrandId, Guid TeamId,
     string ExpectedRevision, bool Active, Guid? IntegrationId = null,
     bool CanView = false, bool CanPublish = false, bool CanManage = false);
+public sealed record AssignmentTeamState(Guid TeamId, bool Active, IReadOnlyList<Guid> ChannelIds);
+public sealed record AssignmentBatchChange(Guid ActorId, Guid WorkspaceId, Guid BrandId,
+    string ExpectedRevision, IReadOnlyList<AssignmentTeamState> Teams);
 public sealed record AssignmentSnapshot(string Revision, IReadOnlyList<TeamBrand> Teams, IReadOnlyList<TeamChannelAccess> Channels);
 
 public sealed class AssignmentService(AisamContext db, IAccessControlService access)
@@ -57,6 +60,78 @@ public sealed class AssignmentService(AisamContext db, IAccessControlService acc
             attempted=true;
             return await ChangeCoreAsync(request,ct);
         });
+    }
+
+    public async Task<AssignmentSnapshot> ChangeBatchAsync(AssignmentBatchChange request, CancellationToken ct = default)
+    {
+        var attempted=false;
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            if(attempted) throw new AssignmentConflictException();
+            attempted=true;
+            return await ChangeBatchCoreAsync(request,ct);
+        });
+    }
+
+    private async Task<AssignmentSnapshot> ChangeBatchCoreAsync(AssignmentBatchChange request, CancellationToken ct)
+    {
+        if(!V2) throw new ArgumentException("Batch assignments require RBAC v2.");
+        if(string.IsNullOrWhiteSpace(request.ExpectedRevision)) throw new ArgumentException("Expected revision is required.");
+        if(request.Teams is null || request.Teams.Count is < 1 or > 200) throw new ArgumentException("Provide 1-200 Team changes.");
+        if(request.Teams.Select(t=>t.TeamId).Distinct().Count()!=request.Teams.Count) throw new ArgumentException("Duplicate Team changes are not allowed.");
+        if(request.Teams.Any(t=>t.ChannelIds is null || t.ChannelIds.Count>200 || t.ChannelIds.Distinct().Count()!=t.ChannelIds.Count || !t.Active && t.ChannelIds.Count>0))
+            throw new ArgumentException("Channel selections must be distinct and require active Brand access.");
+        if(request.Teams.Sum(t=>t.ChannelIds.Count)>2000) throw new ArgumentException("Too many channel selections.");
+
+        await using var tx=db.Database.IsRelational()?await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct):null;
+        var current=await ReadAsync(request.ActorId,request.WorkspaceId,request.BrandId,ct);
+        if(current.Revision!=request.ExpectedRevision) throw new AssignmentConflictException();
+
+        var teamIds=request.Teams.Select(t=>t.TeamId).ToArray();
+        var validTeams=await db.Teams.AsNoTracking().Where(t=>teamIds.Contains(t.Id) && t.WorkspaceId==request.WorkspaceId && !t.IsDeleted && t.Status==TeamStatusEnum.Active)
+            .Select(t=>t.Id).ToListAsync(ct);
+        if(validTeams.Count!=teamIds.Length) throw new AssignmentAccessException(AccessDecision.Hidden);
+        var enabledTeamIds=request.Teams.Where(t=>t.Active).Select(t=>t.TeamId).ToArray();
+        var managerTeamIds=await db.TeamMembers.AsNoTracking().Where(m=>enabledTeamIds.Contains(m.TeamId) && m.Role==TeamRoleEnum.Manager && m.IsActive)
+            .Select(m=>m.TeamId).Distinct().ToListAsync(ct);
+        if(managerTeamIds.Count!=enabledTeamIds.Length) throw new InvalidOperationException("TEAM_REQUIRES_MANAGER");
+
+        var selectedChannelIds=request.Teams.SelectMany(t=>t.ChannelIds).Distinct().ToArray();
+        var validChannelIds=await db.SocialIntegrations.AsNoTracking().Where(i=>selectedChannelIds.Contains(i.Id) && i.WorkspaceId==request.WorkspaceId &&
+            i.BrandId==request.BrandId && !i.IsDeleted && i.IsActive).Select(i=>i.Id).ToListAsync(ct);
+        if(validChannelIds.Count!=selectedChannelIds.Length) throw new AssignmentAccessException(AccessDecision.Hidden);
+
+        var assignments=await db.TeamBrands.Where(t=>t.BrandId==request.BrandId && teamIds.Contains(t.TeamId)).ToListAsync(ct);
+        var existingAssignmentIds=assignments.Select(t=>t.Id).ToArray();
+        var existingGrants=await db.TeamChannelAccesses.Where(g=>existingAssignmentIds.Contains(g.TeamBrandId)).ToListAsync(ct);
+        foreach(var change in request.Teams)
+        {
+            var assignment=assignments.SingleOrDefault(t=>t.TeamId==change.TeamId);
+            if(assignment is null)
+            {
+                assignment=new TeamBrand{TeamId=change.TeamId,BrandId=request.BrandId};
+                assignments.Add(assignment);db.Add(assignment);
+            }
+            assignment.IsActive=change.Active;
+            assignment.AssignedAt=DateTime.UtcNow;
+            var grants=existingGrants.Where(g=>g.TeamBrandId==assignment.Id).ToList();
+            foreach(var grant in grants)
+            {
+                var enabled=change.Active && change.ChannelIds.Contains(grant.IntegrationId);
+                grant.ScopeEnabledV2=enabled;
+                grant.CanView=grant.CanPublish=grant.CanManage=false;
+            }
+            if(change.Active)
+                foreach(var channelId in change.ChannelIds.Where(id=>grants.All(g=>g.IntegrationId!=id)))
+                    db.Add(new TeamChannelAccess{TeamBrandId=assignment.Id,IntegrationId=channelId,ScopeEnabledV2=true});
+        }
+        db.AuditLogs.Add(new AuditLog {ActorId=request.ActorId,WorkspaceId=request.WorkspaceId,ActionType="permission.batch_update",
+            TargetTable="brands",TargetId=request.BrandId,Result="allowed",OldValues=System.Text.Json.JsonSerializer.Serialize(new {revision=current.Revision}),
+            NewValues=System.Text.Json.JsonSerializer.Serialize(request.Teams.Select(t=>new {t.TeamId,t.Active,t.ChannelIds}))});
+        await db.SaveChangesAsync(ct);
+        var result=await Snapshot(request.BrandId,ct);
+        if(tx is not null)await tx.CommitAsync(ct);
+        return await VisibleSnapshot(request.ActorId,request.WorkspaceId,result,ct);
     }
 
     private async Task<AssignmentSnapshot> ChangeCoreAsync(AssignmentChange request, CancellationToken ct)

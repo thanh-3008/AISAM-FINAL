@@ -13,6 +13,12 @@ export interface PostItem {
   contentTitle: string | null;
   brandId: string | null;
   brandName: string | null;
+  creatorId?: string | null;
+  creatorName?: string | null;
+  reviewerId?: string | null;
+  reviewerName?: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
   platform: string | null;
   type: string | null;
   caption: string | null;
