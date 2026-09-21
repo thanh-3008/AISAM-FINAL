@@ -45,7 +45,7 @@ export default function TransferOwnershipConfirmModal({
                 <div className="text-body-sm text-amber-800">
                   <p className="font-semibold mb-1">Important:</p>
                   <ul className="space-y-1 text-amber-700">
-                    <li>You will become a Manager after transfer.</li>
+                    <li>You will become a Workspace Manager after transfer.</li>
                     <li>The new Owner will control billing, settings, and members.</li>
                     <li>This can only be reversed by the new Owner.</li>
                   </ul>

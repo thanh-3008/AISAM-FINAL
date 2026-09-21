@@ -3,6 +3,7 @@
 import React from "react";
 import { fetchMemberCreditUsage, QUOTA_MODE_LABELS, type MemberCreditUsageRecord, type Team, type TeamMember } from "@/services/teamService";
 import { getCreditTransactionPresentation } from "@/lib/billingFormatters";
+import { isOwnershipTransferCandidate } from "@/lib/ownershipTransfer";
 import { getInitials, formatDate, calcTimeAgo, ROLE_CONFIG, STATUS_CONFIG } from "./teamUtils";
 
 interface MemberDetailModalProps {
@@ -68,7 +69,7 @@ export default function MemberDetailModal({
   const hasAssignedQuota = member.quotaMode !== "SharedPool";
   const remainingCredits = member.creditLimit != null ? Math.max(0, member.creditLimit - member.creditUsed) : null;
   const usagePercent = member.creditLimit ? Math.min(100, (member.creditUsed / member.creditLimit) * 100) : 0;
-  const canTransferOwnership = isOwner && member.status === "Active" && member.role === "Manager";
+  const canTransferOwnership = isOwner && member.status === "Active" && isOwnershipTransferCandidate(member);
 
   return (
     <>

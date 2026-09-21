@@ -41,6 +41,7 @@ import { CREDIT_PACK_CODES_BY_ID, exitPayment, fetchPublicPricing, synchronizeBu
 import { PLAN_PRICING, CREDIT_PACK_PRICING, type PlanPricing, type CreditPackPricing } from "@/lib/pricing";
 import { formatVndAmount, getCreditTransactionPresentation } from "@/lib/billingFormatters";
 import { getWorkspaceRoleLabel, WORKSPACE_ROLE_LABELS } from "@/lib/roleLabels";
+import { isOwnershipTransferCandidate } from "@/lib/ownershipTransfer";
 
 interface Workspace {
   id: string;
@@ -644,8 +645,12 @@ export default function ProfileDetailPage() {
       const result = await transferOwnership(selectedNewOwner.id);
       if (result.success) {
         setMembers(prev => prev.map(m => {
-          if (m.id === selectedNewOwner.id) return { ...m, role: "Owner" as WorkspaceMemberRole };
-          if (m.role === "Owner") return { ...m, role: "Manager" as WorkspaceMemberRole };
+          if (m.id === selectedNewOwner.id) {
+            return { ...m, role: "Owner" as WorkspaceMemberRole, workspaceRole: "Owner" };
+          }
+          if (m.workspaceRole === "Owner") {
+            return { ...m, role: "Manager" as WorkspaceMemberRole, workspaceRole: "WorkspaceManager" };
+          }
           return m;
         }));
         setWorkspace(prev => prev ? { ...prev, isOwner: false, memberRole: "Manager" } : prev);
@@ -3179,7 +3184,7 @@ export default function ProfileDetailPage() {
                       </div>
                       <div>
                         <h3 className="text-body-lg font-bold text-on-surface">Transfer Ownership</h3>
-                        <p className="text-label-sm text-on-surface-variant">Select a Manager to become the new Owner</p>
+                        <p className="text-label-sm text-on-surface-variant">Select a Workspace Manager to become the new Owner</p>
                       </div>
                     </div>
 
@@ -3189,7 +3194,7 @@ export default function ProfileDetailPage() {
                         <div className="text-body-sm text-amber-800">
                           <p className="font-semibold mb-1">Important:</p>
                           <ul className="space-y-1 text-amber-700">
-                            <li>• You will become a Manager after transfer</li>
+                            <li>• You will become a Workspace Manager after transfer</li>
                             <li>• The new Owner will have full access to billing and settings</li>
                             <li>• This action can be reversed by the new Owner</li>
                           </ul>
@@ -3198,16 +3203,16 @@ export default function ProfileDetailPage() {
                     </div>
 
                     <div className="mb-6">
-                      <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Manager only)</label>
+                      <label className="text-label-sm font-semibold text-on-surface mb-3 block">Select New Owner (Workspace Manager only)</label>
                       <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {members.filter(m => m.role === "Manager").length === 0 ? (
+                        {members.filter(isOwnershipTransferCandidate).length === 0 ? (
                           <div className="text-center py-8">
                             <span className="material-symbols-outlined text-outline/40 text-4xl mb-2 block">person_off</span>
-                            <p className="text-body-sm text-on-surface-variant">No Manager members found</p>
-                            <p className="text-label-xs text-outline mt-1">You need to have at least one Manager to transfer ownership</p>
+                            <p className="text-body-sm text-on-surface-variant">No Workspace Manager found</p>
+                            <p className="text-label-xs text-outline mt-1">Assign the Workspace Manager role to an active member before transferring ownership</p>
                           </div>
                         ) : (
-                          members.filter(m => m.role === "Manager").map((member) => (
+                          members.filter(isOwnershipTransferCandidate).map((member) => (
                             <button
                               key={member.id}
                               onClick={() => setSelectedNewOwner(member)}

@@ -259,6 +259,7 @@ export async function fetchDailyCreditSummary(days: number = 7): Promise<DailyCr
 
 // Workspace Members
 export type WorkspaceMemberRole = "Owner" | "Manager" | "ContentCreator" | "Viewer";
+export type WorkspaceRoleV2 = "Owner" | "WorkspaceManager" | "Member";
 
 export interface WorkspaceMember {
   id: string;
@@ -266,7 +267,7 @@ export interface WorkspaceMember {
   name: string;
   email: string;
   role: WorkspaceMemberRole;
-  workspaceRole?: string | null;
+  workspaceRole?: WorkspaceRoleV2 | null;
   joinedAt: string;
 }
 
@@ -290,7 +291,7 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMembersResponse 
       fullName: string;
       email: string;
       role: number;
-      workspaceRole?: string | null;
+      workspaceRole?: WorkspaceRoleV2 | null;
       joinedAt: string;
     }[]> = await apiClient("/workspace-members");
     if (res?.data) {
