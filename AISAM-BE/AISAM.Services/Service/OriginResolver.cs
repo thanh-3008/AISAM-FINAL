@@ -54,6 +54,26 @@ public sealed class OriginResolver : IOriginResolver
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // 0. Query parameter "origin"
+        if (request.Query.TryGetValue("origin", out var queryOriginValues))
+        {
+            var queryOrigin = queryOriginValues.ToString();
+            if (!string.IsNullOrWhiteSpace(queryOrigin) && IsAllowedOrigin(queryOrigin))
+            {
+                return ResolveOrigin(queryOrigin);
+            }
+        }
+
+        // 0.1 Header "X-Client-Origin"
+        if (request.Headers.TryGetValue("X-Client-Origin", out var clientOriginValues))
+        {
+            var clientOrigin = clientOriginValues.ToString();
+            if (!string.IsNullOrWhiteSpace(clientOrigin) && IsAllowedOrigin(clientOrigin))
+            {
+                return ResolveOrigin(clientOrigin);
+            }
+        }
+
         // 1. Origin header
         if (request.Headers.TryGetValue("Origin", out var originValues))
         {
@@ -72,11 +92,14 @@ public sealed class OriginResolver : IOriginResolver
                 Uri.TryCreate(refererHeader, UriKind.Absolute, out var refererUri))
             {
                 var candidate = $"{refererUri.Scheme}://{refererUri.Authority}";
-                return ResolveOrigin(candidate);
+                if (IsAllowedOrigin(candidate))
+                {
+                    return ResolveOrigin(candidate);
+                }
             }
         }
 
-        // 3. X-Forwarded-Host or Host
+        // 3. X-Forwarded-Host or Host (excluding known API backend hosts)
         string? host = null;
         if (request.Headers.TryGetValue("X-Forwarded-Host", out var fwdHostValues) && !string.IsNullOrWhiteSpace(fwdHostValues.ToString()))
         {
@@ -87,7 +110,7 @@ public sealed class OriginResolver : IOriginResolver
             host = request.Host.Value;
         }
 
-        if (!string.IsNullOrWhiteSpace(host))
+        if (!string.IsNullOrWhiteSpace(host) && !IsApiHost(host))
         {
             var scheme = request.Headers.TryGetValue("X-Forwarded-Proto", out var fwdProtoValues) && !string.IsNullOrWhiteSpace(fwdProtoValues.ToString())
                 ? fwdProtoValues.ToString().Split(',')[0].Trim()
@@ -102,6 +125,12 @@ public sealed class OriginResolver : IOriginResolver
         }
 
         return _defaultOrigin;
+    }
+
+    private static bool IsApiHost(string host)
+    {
+        var clean = host.Split(':')[0].Trim().ToLowerInvariant();
+        return clean.StartsWith("api.", StringComparison.OrdinalIgnoreCase) || clean.Contains("api-");
     }
 
     public string ResolveOrigin(string? candidateOrigin)

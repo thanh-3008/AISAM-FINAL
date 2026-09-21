@@ -39,12 +39,11 @@ public sealed class MultiDomainOAuthTests
     [Theory]
     [InlineData("https://aisam.io.vn", "https://aisam.io.vn")]
     [InlineData("https://aisam.ddns.net", "https://aisam.ddns.net")]
-    [InlineData("https://api.aisam.io.vn", "https://api.aisam.io.vn")]
     [InlineData("http://localhost:3000", "http://localhost:3000")]
     [InlineData("https://aisam.ddns.net/", "https://aisam.ddns.net")]
     public void OriginResolver_ResolvesAllowedOrigins_Successfully(string candidate, string expected)
     {
-        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net", "https://api.aisam.io.vn", "http://localhost:3000");
+        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net", "http://localhost:3000");
         var resolver = new OriginResolver(config);
 
         var resolved = resolver.ResolveOrigin(candidate);
@@ -66,6 +65,50 @@ public sealed class MultiDomainOAuthTests
         var ex = Assert.Throws<InvalidOperationException>(() => resolver.ResolveOrigin(maliciousOrigin));
         Assert.Contains("not allowed", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(resolver.IsAllowedOrigin(maliciousOrigin));
+    }
+
+    [Fact]
+    public void OriginResolver_ResolvesOriginFromQueryParam_WhenPresentAndAllowed()
+    {
+        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net");
+        var resolver = new OriginResolver(config);
+
+        var context = new DefaultHttpContext();
+        context.Request.QueryString = new QueryString("?origin=https%3A%2F%2Faisam.ddns.net");
+
+        var resolved = resolver.ResolveOrigin(context.Request);
+
+        Assert.Equal("https://aisam.ddns.net", resolved);
+    }
+
+    [Fact]
+    public void OriginResolver_ResolvesOriginFromClientOriginHeader_WhenPresentAndAllowed()
+    {
+        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net");
+        var resolver = new OriginResolver(config);
+
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Client-Origin"] = "https://aisam.ddns.net";
+
+        var resolved = resolver.ResolveOrigin(context.Request);
+
+        Assert.Equal("https://aisam.ddns.net", resolved);
+    }
+
+    [Fact]
+    public void OriginResolver_IgnoresApiHost_WhenIncomingRequestHostIsApiDomain()
+    {
+        var config = CreateConfig("https://aisam.io.vn", "https://aisam.ddns.net");
+        var resolver = new OriginResolver(config);
+
+        var context = new DefaultHttpContext();
+        context.Request.Host = new HostString("api.aisam.io.vn");
+        context.Request.Scheme = "https";
+
+        var resolved = resolver.ResolveOrigin(context.Request);
+
+        // Must NOT resolve to https://api.aisam.io.vn; must fall back to default FE origin
+        Assert.Equal("https://aisam.io.vn", resolved);
     }
 
     [Fact]
