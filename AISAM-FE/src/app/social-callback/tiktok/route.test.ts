@@ -132,4 +132,18 @@ describe("TikTok callback relay", () => {
     // Host aisam.ddns.net matches state host -> must NOT redirect, returns 200
     expect(response.status).toBe(200);
   });
+
+  it("renders replaceState and expired-state handling in client script", async () => {
+    const request = new NextRequest(
+      "https://aisam.ddns.net/social-callback/tiktok?code=test-auth-code&state=test-state",
+    );
+
+    const response = GET(request);
+
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("window.history.replaceState");
+    expect(html).toContain("TikTok authorization expired");
+    expect(html).toContain("Back to Social Accounts");
+  });
 });
