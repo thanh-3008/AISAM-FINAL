@@ -64,10 +64,57 @@ export function resolveClientOrigin(): string {
 }
 
 /**
+ * Safely extracts the Origin field from an AISAM signed OAuth state parameter.
+ * State format: <base64url_json_payload>.<base64url_hmac_signature>
+ * Returns the origin only if it passes the allowed-origins check.
+ */
+export function extractOriginFromOAuthState(stateParam: string | null | undefined): string | null {
+  if (!stateParam) return null;
+  try {
+    const dotIndex = stateParam.indexOf(".");
+    if (dotIndex <= 0) return null;
+
+    const payloadPart = stateParam.substring(0, dotIndex);
+
+    // Base64url → standard Base64
+    let base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padding = base64.length % 4;
+    if (padding > 0) {
+      base64 += "=".repeat(4 - padding);
+    }
+
+    // Decode using atob (available in Node.js ≥ 16 and Edge Runtime)
+    const jsonStr = atob(base64);
+    const payload = JSON.parse(jsonStr);
+
+    if (payload?.Origin && typeof payload.Origin === "string") {
+      const normalized = normalizeOrigin(payload.Origin);
+      if (normalized && isAllowedOrigin(normalized)) {
+        return normalized;
+      }
+    }
+  } catch {
+    // State is not valid AISAM JSON or decode failed — ignore safely
+  }
+  return null;
+}
+
+/**
  * Resolves the client origin on the Next.js server side (Route Handlers/Middleware)
- * by inspecting X-Forwarded-Host, Host, or NextRequest nextUrl.
+ * by inspecting OAuth state, X-Forwarded-Host, Host, or NextRequest nextUrl.
  */
 export function resolveServerOrigin(request: NextRequest): string {
+  // 0. Highest priority: extract Origin from the signed OAuth state parameter.
+  //    The backend embeds the user's actual origin domain into the state when
+  //    generating the OAuth authorization URL. This is immune to proxy header
+  //    misconfiguration and guarantees correct domain resolution for OAuth callbacks.
+  const stateOrigin = extractOriginFromOAuthState(
+    request.nextUrl.searchParams.get("state"),
+  );
+  if (stateOrigin) {
+    return stateOrigin;
+  }
+
   // 1. Check X-Forwarded-Host (from Nginx)
   const forwardedHost = request.headers.get("x-forwarded-host");
   if (forwardedHost) {
