@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { resolveServerOrigin } from "@/lib/originResolver";
+import { extractOriginFromOAuthState } from "@/lib/originResolver";
 
 function asJavaScriptString(value: string | null): string {
   return JSON.stringify(value ?? "").replaceAll("<", "\\u003c");
@@ -26,6 +26,18 @@ function canUseLocalCallback(request: NextRequest): boolean {
   );
 }
 
+function getCurrentHost(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  if (forwardedHost) {
+    return forwardedHost.split(",")[0].trim().toLowerCase();
+  }
+  const host = request.headers.get("host");
+  if (host) {
+    return host.split(",")[0].trim().toLowerCase();
+  }
+  return request.nextUrl.host.toLowerCase();
+}
+
 export function GET(request: NextRequest) {
   const localCallbackUrl = canUseLocalCallback(request)
     ? process.env.TIKTOK_LOCAL_CALLBACK_URL?.trim()
@@ -41,24 +53,35 @@ export function GET(request: NextRequest) {
     }
   }
 
-  const targetOrigin = resolveServerOrigin(request);
-  if (targetOrigin && request.nextUrl.origin !== targetOrigin) {
-    const target = new URL(`${targetOrigin}/social-callback/tiktok`);
-    target.search = request.nextUrl.search;
-    return NextResponse.redirect(target, {
-      status: 302,
-      headers: {
-        "Cache-Control": "no-store",
-        "Referrer-Policy": "no-referrer",
-      },
-    });
-  }
-
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const oauthError = request.nextUrl.searchParams.get("error_description") || request.nextUrl.searchParams.get("error");
   const backendApiBaseUrl = getBackendApiBaseUrl();
   const fallbackApiBaseUrl = getFallbackApiBaseUrl();
+
+  // Origin Relay: Only redirect if the state parameter explicitly specifies an
+  // allowed origin domain different from the current request's host.
+  // This prevents self-redirect loops and protocol mismatches (http behind reverse-proxy vs https).
+  const stateOrigin = extractOriginFromOAuthState(state);
+  if (stateOrigin) {
+    try {
+      const stateUrl = new URL(stateOrigin);
+      const currentHost = getCurrentHost(request);
+      if (stateUrl.host.toLowerCase() !== currentHost) {
+        const target = new URL(`${stateOrigin}/social-callback/tiktok`);
+        target.search = request.nextUrl.search;
+        return NextResponse.redirect(target, {
+          status: 302,
+          headers: {
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+          },
+        });
+      }
+    } catch {
+      // Ignore URL parse errors
+    }
+  }
 
   const html = `<!doctype html>
 <html lang="en">
